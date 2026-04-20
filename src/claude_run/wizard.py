@@ -7,7 +7,7 @@ from claude_run.config import Preferences, save_preferences, CONFIG_DIR
 class WizardApp(App):
     CSS = """
     Screen { align: center middle; }
-    #title { text-style: bold; font-size: 2; margin-bottom: 1; }
+    #title { text-style: bold; margin-bottom: 1; }
     .desc { margin-bottom: 2; }
     #buttons { margin-top: 2; }
     """
