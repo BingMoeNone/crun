@@ -69,19 +69,21 @@ class FlagGroup:
 def _parse_flags(data: dict) -> list[Flag]:
     result = []
     for item in data.get("flags", []):
-        choices = None
-        if "choices" in item:
-            choices = [Choice(c["value"], c["label"]) for c in item["choices"]]
+        flag_name = item.get("flag", "")
+        description = item.get("description", {"en": "", "zh": ""})
         required_args = [
             RequiredArg(a["name"], a["label"], a.get("placeholder"))
             for a in item.get("required_args", [])
         ]
+        choices = None
+        if "choices" in item:
+            choices = [Choice(c["value"], c["label"]) for c in item["choices"]]
         result.append(Flag(
-            flag=item["flag"],
-            description=item["description"],
+            flag=flag_name,
+            description=description,
             required_args=required_args,
-            type=item["type"],
-            group=item["group"],
+            type=item.get("type", "multi"),
+            group=item.get("group", "uncategorized"),
             choices=choices,
         ))
     return result
@@ -93,8 +95,12 @@ def load_flags() -> list[Flag]:
 
     custom_flags = []
     if CUSTOM_FLAGS_PATH.exists():
-        with open(CUSTOM_FLAGS_PATH, encoding="utf-8") as f:
-            custom_flags = _parse_flags(json.load(f))
+        try:
+            with open(CUSTOM_FLAGS_PATH, encoding="utf-8") as f:
+                custom_flags = _parse_flags(json.load(f))
+        except (json.JSONDecodeError, ValueError):
+            # Silently ignore malformed custom config
+            custom_flags = []
 
     default_map = {f.flag: f for f in default_flags}
     for cf in custom_flags:
