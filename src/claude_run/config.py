@@ -33,8 +33,12 @@ def load_preferences(path: Path | None = None) -> Preferences:
     path = path or PREFERENCES_PATH
     if not path.exists():
         return Preferences()
-    with open(path, encoding="utf-8") as f:
-        return Preferences.from_dict(json.load(f))
+    try:
+        with open(path, encoding="utf-8") as f:
+            return Preferences.from_dict(json.load(f))
+    except (json.JSONDecodeError, ValueError):
+        # Corrupted or invalid config - return defaults
+        return Preferences()
 
 def is_first_run() -> bool:
     prefs = load_preferences()

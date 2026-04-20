@@ -2,7 +2,7 @@
 import json
 import tempfile
 from pathlib import Path
-from claude_run.config import Preferences, load_preferences, save_preferences
+from claude_run.config import Preferences, load_preferences, save_preferences, is_first_run, mark_first_run_done
 
 def test_preferences_default():
     p = Preferences()
@@ -43,6 +43,29 @@ def test_save_and_load_preferences():
 def test_load_nonexistent_returns_default():
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / "nonexistent.json"
+        loaded = load_preferences(path)
+        assert loaded.search_mode == "A"
+        assert loaded.language == "zh"
+        assert loaded.first_run == True
+
+def test_is_first_run_true():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "prefs.json"
+        save_preferences(Preferences(first_run=True), path)
+        prefs = load_preferences(path)
+        assert prefs.first_run == True
+
+def test_is_first_run_false():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "prefs.json"
+        save_preferences(Preferences(first_run=False), path)
+        prefs = load_preferences(path)
+        assert prefs.first_run == False
+
+def test_corrupted_json_returns_defaults():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "corrupted.json"
+        path.write_text("{ invalid json }", encoding="utf-8")
         loaded = load_preferences(path)
         assert loaded.search_mode == "A"
         assert loaded.language == "zh"
