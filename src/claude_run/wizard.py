@@ -1,16 +1,37 @@
-# src/claude_run/wizard.py
+"""首次运行引导：选择搜索模式 + 语言。"""
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, RadioButton, RadioSet, Button, Static
+from textual.binding import Binding
 from textual.containers import Container
-from claude_run.config import Preferences, save_preferences, CONFIG_DIR
+from textual.widgets import Header, Footer, Button, Static, RadioSet, RadioButton
+
+from claude_run.config import Preferences, save_preferences, CONFIG_DIR, ConfigError
 
 
 class WizardApp(App):
+    """两步引导 — 配色同主应用：$accent + $success。"""
+
     CSS = """
-    Screen { align: center middle; }
+    Screen { align: center middle; background: $surface; }
+    #content {
+        width: auto;
+        max-width: 72;
+        height: auto;
+        padding: 2 4;
+        border: tall $accent;
+        background: $panel;
+    }
+    Static.title { text-style: bold; color: $accent; }
+    Static.error { color: $error; text-style: bold; }
+    RadioSet { margin: 1 0; }
+    Button { margin-top: 1; }
     """
 
-    BINDINGS = [("q", "quit", "退出")]
+    TITLE = "claude-run · 初次设置"
+
+    BINDINGS = [
+        Binding("q,ctrl+c", "quit", "退出", priority=True),
+        Binding("escape", "quit", "退出"),
+    ]
 
     def __init__(self, prefs: Preferences):
         super().__init__()
@@ -18,7 +39,7 @@ class WizardApp(App):
         self.step = 0
 
     def compose(self) -> ComposeResult:
-        yield Header()
+        yield Header(show_clock=False)
         yield Container(id="content")
         yield Footer()
 
@@ -26,87 +47,71 @@ class WizardApp(App):
         self._render_step()
 
     def _render_step(self) -> None:
-        container = self.query_one("#content")
-        container.remove_children()
-
+        c = self.query_one("#content", Container)
+        c.remove_children()
         if self.step == 0:
-            self._render_welcome(container)
+            c.mount(Static("欢迎使用 claude-run", classes="title"))
+            c.mount(Static(""))
+            c.mount(Static("一个帮你选择 Claude CLI 启动参数的 TUI 工具。"))
+            c.mount(Static(""))
+            c.mount(Button("开始设置 →", id="start", variant="primary"))
         elif self.step == 1:
-            self._render_search_mode(container)
+            c.mount(Static("步骤 1 / 2 · 搜索模式", classes="title"))
+            rs = RadioSet(id="rs-search")
+            c.mount(rs)
+            rs.mount(RadioButton("A · 模糊搜索（按 / 激活临时搜索框）",
+                                 value=True, name="A"))
+            rs.mount(RadioButton("B · 统一搜索（搜索框常驻顶部）", name="B"))
+            rs.mount(RadioButton("Both · 两者都启用", name="both"))
+            c.mount(Button("下一步 →", id="next", variant="primary"))
         elif self.step == 2:
-            self._render_language(container)
-        elif self.step == 3:
-            self._render_done(container)
-
-    def _render_welcome(self, container: Container) -> None:
-        container.mount(Static("=== 欢迎使用 claude-run ==="))
-        container.mount(Static(""))
-        container.mount(Static("一个 TUI 工具，帮助你选择 Claude CLI 的启动参数。"))
-        container.mount(Static(""))
-        container.mount(Button("开始设置", id="start", variant="primary"))
-
-    def _render_search_mode(self, container: Container) -> None:
-        container.mount(Static("=== 步骤 1/2：选择搜索模式 ==="))
-        container.mount(Static(""))
-        container.mount(RadioButton("A - 模糊搜索（输入关键词实时过滤）", value="A", id="rb-a"))
-        container.mount(RadioButton("B - 统一搜索（搜索框常驻）", value="B", id="rb-b"))
-        container.mount(RadioButton("both - 两者都显示", value="both", id="rb-both"))
-        container.mount(Static(""))
-        container.mount(Button("下一步", id="next", variant="primary"))
-
-    def _render_language(self, container: Container) -> None:
-        container.mount(Static("=== 步骤 2/2：选择界面语言 ==="))
-        container.mount(Static(""))
-        container.mount(RadioButton("中文", value="zh", id="rb-zh"))
-        container.mount(RadioButton("English", value="en", id="rb-en"))
-        container.mount(Static(""))
-        container.mount(Button("下一步", id="next", variant="primary"))
-
-    def _render_done(self, container: Container) -> None:
-        container.mount(Static("设置完成！"))
-        container.mount(Static("正在保存配置..."))
-        self.set_timer(0.5, self.save_and_exit)
-
-    def save_and_exit(self) -> None:
-        rs_a = self.query_one("#rb-a", RadioButton)
-        rs_b = self.query_one("#rb-b", RadioButton)
-        rs_both = self.query_one("#rb-both", RadioButton)
-        if rs_a.checked:
-            self.prefs.search_mode = "A"
-        elif rs_b.checked:
-            self.prefs.search_mode = "B"
-        elif rs_both.checked:
-            self.prefs.search_mode = "both"
-
-        rb_zh = self.query_one("#rb-zh", RadioButton)
-        rb_en = self.query_one("#rb-en", RadioButton)
-        if rb_zh.checked:
-            self.prefs.language = "zh"
-        elif rb_en.checked:
-            self.prefs.language = "en"
-
-        self.prefs.first_run = False
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        save_preferences(self.prefs)
-        self.exit(self.prefs)
+            c.mount(Static("步骤 2 / 2 · 界面语言", classes="title"))
+            rs = RadioSet(id="rs-lang")
+            c.mount(rs)
+            rs.mount(RadioButton("中文", value=True, name="zh"))
+            rs.mount(RadioButton("English", name="en"))
+            c.mount(Button("完成 ✓", id="finish", variant="success"))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "start":
+        bid = event.button.id
+        if bid == "start":
             self.step = 1
-        elif event.button.id == "next":
-            if self.step == 1:
-                rs = self.query_one("#rb-a", RadioButton)
-                rb_b = self.query_one("#rb-b", RadioButton)
-                rb_both = self.query_one("#rb-both", RadioButton)
-                if not (rs.checked or rb_b.checked or rb_both.checked):
-                    return
-            elif self.step == 2:
-                rb = self.query_one("#rb-zh", RadioButton)
-                rb_en = self.query_one("#rb-en", RadioButton)
-                if not (rb.checked or rb_en.checked):
-                    return
-            self.step += 1
-        self._render_step()
+            self._render_step()
+        elif bid == "next":
+            rs = self.query_one("#rs-search", RadioSet)
+            if rs.pressed_button and rs.pressed_button.name:
+                self.prefs.search_mode = rs.pressed_button.name
+            self.step = 2
+            self._render_step()
+        elif bid == "finish":
+            rs = self.query_one("#rs-lang", RadioSet)
+            if rs.pressed_button and rs.pressed_button.name:
+                self.prefs.language = rs.pressed_button.name
+            self.prefs.first_run = False
+            try:
+                CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+                save_preferences(self.prefs)
+            except ConfigError as e:
+                c = self.query_one("#content", Container)
+                c.mount(Static(""))
+                c.mount(Static(f"❌ 保存配置失败: {e}", classes="error"))
+                c.mount(Button("重试", id="retry", variant="warning"))
+                return
+            self.exit(self.prefs)
+        elif bid == "retry":
+            try:
+                CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+                save_preferences(self.prefs)
+                self.exit(self.prefs)
+            except ConfigError as e:
+                c = self.query_one("#content", Container)
+                c.remove_children()
+                c.mount(Static("❌ 仍然失败", classes="error"))
+                c.mount(Static(f"错误: {e}"))
+                c.mount(Static("请检查 ~/.config/claude-run/ 权限"))
+                c.mount(Button("退出", id="quit", variant="error"))
+        elif bid == "quit":
+            self.exit(self.prefs)
 
 
 def run_wizard(prefs: Preferences) -> Preferences:
