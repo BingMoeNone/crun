@@ -1,14 +1,18 @@
 # src/claude_run/app.py
+import os
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Static, RadioButton, Checkbox, Input, Button
-from textual.containers import Container, Horizontal, VerticalScroll
+from textual.widgets import (
+    Header, Footer, Static, RadioButton, Checkbox,
+    Input, ListView, ListItem
+)
+from textual.containers import VerticalScroll, Horizontal
 from textual.binding import Binding
+from textual import on
 from claude_run.config import load_preferences
 from claude_run.flags import Flag, FlagGroup, load_flags
 from claude_run.search import search_flags
-from claude_run.runner import build_argv, execute_claude, SelectedFlag
+from claude_run.runner import build_argv, SelectedFlag
 
-# Mapping from group name to (zh_label, en_label)
 GROUP_LABELS = {
     "model": ("模型", "Model"),
     "permission": ("权限模式", "Permission"),
@@ -21,67 +25,15 @@ GROUP_LABELS = {
 }
 
 
-class FlagItem(VerticalScroll):
-    """Widget displaying a single flag with its options."""
-
-    def __init__(self, flag: Flag, lang: str):
-        super().__init__()
-        self.flag = flag
-        self.lang = lang
-
-    def compose(self) -> ComposeResult:
-        label = self.flag.label(self.lang)
-        yield Static(f"[b]{self.flag.flag}[/b] — {label}", classes="flag-desc")
-
-        if self.flag.type == "single" and self.flag.choices:
-            with Horizontal():
-                for c in self.flag.choices:
-                    yield RadioButton(
-                        c.label_str(self.lang),
-                        value=c.value,
-                        name=self.flag.flag,
-                        id=f"rb-{self.flag.flag}",
-                    )
-        elif self.flag.type == "multi":
-            yield Checkbox(self.flag.flag, value=False, name=self.flag.flag, id=f"cb-{self.flag.flag}")
-        elif self.flag.requires_value():
-            placeholder = self.flag.required_args[0].placeholder_str(self.lang)
-            yield Input(placeholder=placeholder, id=f"input-{self.flag.flag}")
-
-    def get_selected_value(self) -> str | None:
-        """Return the selected value for this flag, or None if not selected."""
-        if self.flag.type == "single":
-            for rb in self.query(RadioButton):
-                if rb.value and rb.value != "":
-                    return rb.value
-            return None
-        elif self.flag.type == "multi":
-            cb = self.query_one(Checkbox)
-            return self.flag.flag if cb.value else None
-        elif self.flag.requires_value():
-            inp = self.query_one(Input)
-            return inp.value if inp.value else None
-        return None
-
-
 class MainApp(App):
-    """Main TUI application for claude-run."""
-
-    CSS = """
-    #groups { width: 25; border-right: solid green; padding: 1; }
-    #detail { width: 75; padding: 1; }
-    #search-bar { height: 3; border-top: solid green; }
-    .flag-desc { margin-bottom: 1; }
-    .section-title { text-style: bold; margin-bottom: 1; }
-    .selected-group { background: $primary; }
-    """
 
     BINDINGS = [
         Binding("q", "quit", "退出"),
         Binding("/", "activate_search", "搜索"),
-        Binding("ctrl+s", "activate_search", "搜索"),
-        Binding("escape", "deactivate_search", "退出搜索"),
+        Binding("escape", "deactivate_search", "取消"),
         Binding("enter", "execute", "执行"),
+        Binding("up", "prev_group", "上一个"),
+        Binding("down", "next_group", "下一个"),
     ]
 
     def __init__(self, prefs):
@@ -90,98 +42,191 @@ class MainApp(App):
         self.lang = prefs.language
         self.flags = load_flags()
         self.groups = FlagGroup.group_by(self.flags)
+        self.group_names = list(self.groups.keys())
+        self.current_group_index = 0
         self.search_active = False
-        self.current_group: str | None = None
+        self._selected: dict[str, str | None] = {}  # flag -> value
+        self._checkbox_state: dict[str, bool] = {}   # flag -> checked
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with Horizontal():
-            with VerticalScroll(id="groups"):
-                yield Static("预设组", classes="section-title")
-                for group_name in self.groups:
-                    label_zh, label_en = GROUP_LABELS.get(group_name, (group_name, group_name))
-                    label = label_zh if self.lang == "zh" else label_en
-                    yield Button(label, id=f"group-{group_name}", variant="primary")
-            with VerticalScroll(id="detail"):
-                yield Static("← 请从左侧选择一个分组", id="detail-content")
-        with Container(id="search-bar"):
-            yield Input(placeholder="输入搜索关键词...", id="search-input")
+        with Horizontal(id="main"):
+            with VerticalScroll(id="left"):
+                yield Static("分组列表", id="group-header")
+                yield ListView(id="group-list")
+            with VerticalScroll(id="right"):
+                yield Static("", id="detail-header")
+                yield Static("", id="detail-content")
+        yield Input(placeholder="输入搜索关键词...", id="search-input")
         yield Footer()
 
     def on_mount(self) -> None:
-        # Hide search bar initially
-        search_bar = self.query_one("#search-bar")
-        search_bar.display = False
+        # 隐藏搜索框
+        self.query_one("#search-input", Input).display = False
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        btn_id = event.button.id or ""
-        if btn_id.startswith("group-"):
-            group_name = btn_id[len("group-"):]
-            self.current_group = group_name
-            self._render_group_detail(group_name)
-        elif btn_id == "clear":
-            self.current_group = None
-            detail = self.query_one("#detail-content", Static)
-            detail.update("← 请从左侧选择一个分组")
+        # 填充分组列表
+        lv = self.query_one("#group-list", ListView)
+        for name in self.group_names:
+            zh, en = GROUP_LABELS.get(name, (name, name))
+            label = zh if self.lang == "zh" else en
+            lv.append(ListItem(Static(label), id=f"gl-{name}"))
 
-    def _render_group_detail(self, group_name: str) -> None:
-        detail = self.query_one("#detail")
-        detail.remove_children()
+        # 默认选中第一个分组
+        lv.index = 0
+        self._show_group(self.group_names[0])
+
+    def _show_group(self, group_name: str) -> None:
+        zh, en = GROUP_LABELS.get(group_name, (group_name, group_name))
+        header = self.query_one("#detail-header", Static)
+        header.update(f"== {zh if self.lang == 'zh' else en} ==")
+
+        content = self.query_one("#detail-content", Static)
         group_flags = self.groups.get(group_name, [])
-        if not group_flags:
-            detail.mount(Static("该分组暂无参数"))
-            return
-        for flag in group_flags:
-            detail.mount(FlagItem(flag, self.lang))
+
+        lines = []
+        for i, flag in enumerate(group_flags):
+            flag_label = flag.label(self.lang)
+            if flag.type == "single" and flag.choices:
+                lines.append(f"[{i+1}] {flag.flag}")
+                lines.append(f"    {flag_label}")
+                for c in flag.choices:
+                    lines.append(f"    - {c.label_str(self.lang)}")
+            elif flag.type == "multi":
+                checked = self._checkbox_state.get(flag.flag, False)
+                mark = "[x]" if checked else "[ ]"
+                lines.append(f"[{i+1}] {mark} {flag.flag}")
+                lines.append(f"    {flag_label}")
+            elif flag.type == "value":
+                val = self._selected.get(flag.flag, "") or ""
+                lines.append(f"[{i+1}] {flag.flag} = {val}")
+                lines.append(f"    {flag_label}")
+
+        content.update("\n".join(lines) if lines else "(无参数)")
+
+    @on(ListView.Selected)
+    def on_group_selected(self, event: ListView.Selected) -> None:
+        self.current_group_index = event.list_view.index
+        self._show_group(self.group_names[self.current_group_index])
+
+    def action_prev_group(self) -> None:
+        lv = self.query_one("#group-list", ListView)
+        self.current_group_index = (self.current_group_index - 1) % len(self.group_names)
+        lv.index = self.current_group_index
+
+    def action_next_group(self) -> None:
+        lv = self.query_one("#group-list", ListView)
+        self.current_group_index = (self.current_group_index + 1) % len(self.group_names)
+        lv.index = self.current_group_index
 
     def action_activate_search(self) -> None:
         self.search_active = True
-        search_bar = self.query_one("#search-bar")
-        search_bar.display = True
         inp = self.query_one("#search-input", Input)
+        inp.display = True
         inp.focus()
+        header = self.query_one("#detail-header", Static)
+        header.update("== 搜索结果 ==")
 
     def action_deactivate_search(self) -> None:
         self.search_active = False
-        search_bar = self.query_one("#search-bar")
-        search_bar.display = False
         inp = self.query_one("#search-input", Input)
+        inp.display = False
         inp.value = ""
-        # Clear detail and show groups
-        detail = self.query_one("#detail")
-        detail.remove_children()
-        detail.mount(Static("← 请从左侧选择一个分组"))
+        self._show_group(self.group_names[self.current_group_index])
 
+    @on(Input.Changed)
     def on_input_changed(self, event: Input.Changed) -> None:
-        if self.search_active:
-            query = event.value
-            if query:
-                results = search_flags(self.flags, query, self.lang)
-                self._render_search_results(results)
-            else:
-                detail = self.query_one("#detail")
-                detail.remove_children()
-                detail.mount(Static("← 请从左侧选择一个分组"))
-
-    def _render_search_results(self, results: list[Flag]) -> None:
-        detail = self.query_one("#detail")
-        detail.remove_children()
-        if not results:
-            detail.mount(Static("未找到匹配的参数"))
+        if not self.search_active or event.input.id != "search-input":
             return
+        query = event.value
+        content = self.query_one("#detail-content", Static)
+        header = self.query_one("#detail-header", Static)
+
+        if not query.strip():
+            self._show_group(self.group_names[self.current_group_index])
+            return
+
+        results = search_flags(self.flags, query, self.lang)
+        header.update(f"== 搜索: {query} ({len(results)} 结果) ==")
+
+        lines = []
         for flag in results:
-            detail.mount(FlagItem(flag, self.lang))
+            label = flag.label(self.lang)
+            if flag.type == "single" and flag.choices:
+                choices_str = ", ".join(c.label_str(self.lang) for c in flag.choices)
+                lines.append(f"{flag.flag}  {label}")
+                lines.append(f"    选项: {choices_str}")
+            elif flag.type == "multi":
+                lines.append(f"{flag.flag}  {label}")
+            elif flag.type == "value":
+                lines.append(f"{flag.flag}  {label}")
+                if flag.required_args:
+                    lines.append(f"    参数: {flag.required_args[0].label_str(self.lang)}")
+
+        content.update("\n".join(lines) if lines else "未找到匹配参数")
 
     def action_execute(self) -> None:
+        if self.search_active:
+            return
+        self._do_execute()
+
+    def _do_execute(self) -> None:
+        group_name = self.group_names[self.current_group_index]
+        group_flags = self.groups.get(group_name, [])
         selected_args = []
-        for fi in self.query(FlagItem):
-            val = fi.get_selected_value()
-            if val:
-                if fi.flag.type == "multi":
-                    selected_args.append(SelectedFlag(val))
-                else:
-                    selected_args.append(SelectedFlag(fi.flag.flag, val))
+
+        for i, flag in enumerate(group_flags):
+            val = self._selected.get(flag.flag)
+            checked = self._checkbox_state.get(flag.flag, False)
+
+            if flag.type == "single" and val:
+                selected_args.append(SelectedFlag(flag.flag, val))
+            elif flag.type == "multi" and checked:
+                selected_args.append(SelectedFlag(flag.flag))
+            elif flag.type == "value" and val:
+                selected_args.append(SelectedFlag(flag.flag, val))
 
         argv = build_argv(selected_args)
         self.exit()
-        execute_claude(argv)
+        os.execvp(argv[0], argv)
+
+    def on_key(self, event) -> None:
+        # 数字键 1-9 快速选择参数
+        if event.key in [str(i) for i in range(1, 10)]:
+            idx = int(event.key) - 1
+            if self.search_active:
+                return
+            group_name = self.group_names[self.current_group_index]
+            group_flags = self.groups.get(group_name, [])
+            if idx >= len(group_flags):
+                return
+            flag = group_flags[idx]
+
+            if flag.type == "single" and flag.choices:
+                # 循环选择下一个选项
+                current = self._selected.get(flag.flag)
+                current_idx = next(
+                    (i for i, c in enumerate(flag.choices) if c.value == current),
+                    -1
+                )
+                next_idx = (current_idx + 1) % len(flag.choices)
+                self._selected[flag.flag] = flag.choices[next_idx].value
+            elif flag.type == "multi":
+                current = self._checkbox_state.get(flag.flag, False)
+                self._checkbox_state[flag.flag] = not current
+            elif flag.type == "value":
+                # 弹出输入提示（暂时用简单方式）
+                pass
+
+            self._show_group(group_name)
+
+        # Space 切换 checkbox 状态
+        if event.key == " ":
+            if self.search_active:
+                return
+            group_name = self.group_names[self.current_group_index]
+            group_flags = self.groups.get(group_name, [])
+            for i, flag in enumerate(group_flags):
+                if flag.type == "multi":
+                    current = self._checkbox_state.get(flag.flag, False)
+                    self._checkbox_state[flag.flag] = not current
+            self._show_group(group_name)
