@@ -1,0 +1,21 @@
+[project]
+name = "claude-run"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "textual>=0.50.0",
+]
+
+[project.scripts]
+claude-run = "claude_run.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
