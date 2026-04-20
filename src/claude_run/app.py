@@ -173,25 +173,14 @@ class MainApp(App):
             detail.mount(FlagItem(flag, self.lang))
 
     def action_execute(self) -> None:
-        if self.search_active:
-            # In search mode, collect from visible FlagItems
-            selected_args = []
-            for fi in self.query(FlagItem):
-                val = fi.get_selected_value()
-                if val:
-                    if fi.flag.type == "multi":
-                        selected_args.append(SelectedFlag(val))
-                    else:
-                        selected_args.append(SelectedFlag(fi.flag.flag, val))
-        else:
-            selected_args = []
-            for fi in self.query(FlagItem):
-                val = fi.get_selected_value()
-                if val:
-                    if fi.flag.type == "multi":
-                        selected_args.append(SelectedFlag(val))
-                    else:
-                        selected_args.append(SelectedFlag(fi.flag.flag, val))
+        selected_args = []
+        for fi in self.query(FlagItem):
+            val = fi.get_selected_value()
+            if val:
+                if fi.flag.type == "multi":
+                    selected_args.append(SelectedFlag(val))
+                else:
+                    selected_args.append(SelectedFlag(fi.flag.flag, val))
 
         argv = build_argv(selected_args)
         self.exit()
