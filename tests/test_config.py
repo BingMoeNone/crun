@@ -1,0 +1,49 @@
+# tests/test_config.py
+import json
+import tempfile
+from pathlib import Path
+from claude_run.config import Preferences, load_preferences, save_preferences
+
+def test_preferences_default():
+    p = Preferences()
+    assert p.search_mode == "A"
+    assert p.language == "zh"
+    assert p.first_run == True
+
+def test_preferences_custom():
+    p = Preferences(search_mode="B", language="en", first_run=False)
+    assert p.search_mode == "B"
+    assert p.language == "en"
+    assert p.first_run == False
+
+def test_preferences_to_dict():
+    p = Preferences(search_mode="both", language="zh", first_run=False)
+    d = p.to_dict()
+    assert d["search_mode"] == "both"
+    assert d["language"] == "zh"
+    assert d["first_run"] == False
+
+def test_preferences_from_dict():
+    d = {"search_mode": "B", "language": "en", "first_run": False}
+    p = Preferences.from_dict(d)
+    assert p.search_mode == "B"
+    assert p.language == "en"
+    assert p.first_run == False
+
+def test_save_and_load_preferences():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "preferences.json"
+        prefs = Preferences(search_mode="B", language="en", first_run=False)
+        save_preferences(prefs, path)
+        loaded = load_preferences(path)
+        assert loaded.search_mode == "B"
+        assert loaded.language == "en"
+        assert loaded.first_run == False
+
+def test_load_nonexistent_returns_default():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "nonexistent.json"
+        loaded = load_preferences(path)
+        assert loaded.search_mode == "A"
+        assert loaded.language == "zh"
+        assert loaded.first_run == True
