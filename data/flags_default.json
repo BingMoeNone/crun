@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "flags": [
+    {
+      "flag": "--model",
+      "description": { "zh": "当前会话使用的模型", "en": "Model for the current session" },
+      "required_args": [],
+      "type": "single",
+      "group": "model",
+      "choices": [
+        { "value": "opus", "label": { "zh": "Opus", "en": "Opus" } },
+        { "value": "sonnet", "label": { "zh": "Sonnet", "en": "Sonnet" } },
+        { "value": "haiku", "label": { "zh": "Haiku", "en": "Haiku" } }
+      ]
+    },
+    {
+      "flag": "--permission-mode",
+      "description": { "zh": "当前会话的权限模式", "en": "Permission mode for the session" },
+      "required_args": [],
+      "type": "single",
+      "group": "permission",
+      "choices": [
+        { "value": "acceptEdits", "label": { "zh": "Accept Edits", "en": "Accept Edits" } },
+        { "value": "auto", "label": { "zh": "Auto", "en": "Auto" } },
+        { "value": "bypassPermissions", "label": { "zh": "Bypass Permissions", "en": "Bypass Permissions" } },
+        { "value": "default", "label": { "zh": "Default", "en": "Default" } },
+        { "value": "dontAsk", "label": { "zh": "Don't Ask", "en": "Don't Ask" } },
+        { "value": "plan", "label": { "zh": "Plan", "en": "Plan" } }
+      ]
+    },
+    {
+      "flag": "-p",
+      "description": { "zh": "打印输出后退出（非交互模式）", "en": "Print response and exit (non-interactive)" },
+      "required_args": [],
+      "type": "multi",
+      "group": "output"
+    },
+    {
+      "flag": "--output-format",
+      "description": { "zh": "输出格式", "en": "Output format for print mode" },
+      "required_args": [],
+      "type": "single",
+      "group": "output",
+      "choices": [
+        { "value": "text", "label": { "zh": "Text", "en": "Text" } },
+        { "value": "json", "label": { "zh": "JSON", "en": "JSON" } },
+        { "value": "stream-json", "label": { "zh": "Stream JSON", "en": "Stream JSON" } }
+      ]
+    },
+    {
+      "flag": "--json-schema",
+      "description": { "zh": "结构化输出的 JSON Schema 验证", "en": "JSON Schema for structured output validation" },
+      "required_args": [{ "name": "schema", "label": { "zh": "Schema", "en": "Schema" }, "placeholder": { "zh": "例: {\"type\":\"object\"}", "en": "e.g. {\"type\":\"object\"}" } }],
+      "type": "value",
+      "group": "output"
+    },
+    {
+      "flag": "-c",
+      "description": { "zh": "继续当前目录最近的会话", "en": "Continue the most recent conversation" },
+      "required_args": [],
+      "type": "multi",
+      "group": "session"
+    },
+    {
+      "flag": "--continue",
+      "description": { "zh": "继续当前目录最近的会话（同 -c）", "en": "Continue the most recent conversation" },
+      "required_args": [],
+      "type": "multi",
+      "group": "session"
+    },
+    {
+      "flag": "-r",
+      "description": { "zh": "通过会话 ID 恢复会话，或打开交互选择器", "en": "Resume a conversation by session ID" },
+      "required_args": [{ "name": "session_id", "label": { "zh": "会话 ID", "en": "Session ID" }, "placeholder": { "zh": "例: abc-123", "en": "e.g. abc-123" } }],
+      "type": "value",
+      "group": "session"
+    },
+    {
+      "flag": "--resume",
+      "description": { "zh": "恢复会话（同 -r）", "en": "Resume a conversation" },
+      "required_args": [{ "name": "session_id", "label": { "zh": "会话 ID", "en": "Session ID" }, "placeholder": { "zh": "例: abc-123", "en": "e.g. abc-123" } }],
+      "type": "value",
+      "group": "session"
+    },
+    {
+      "flag": "--fork-session",
+      "description": { "zh": "恢复时创建新的会话 ID", "en": "Create a new session ID when resuming" },
+      "required_args": [],
+      "type": "multi",
+      "group": "session"
+    },
+    {
+      "flag": "--session-id",
+      "description": { "zh": "使用指定 UUID 的会话", "en": "Use a specific session ID" },
+      "required_args": [{ "name": "uuid", "label": { "zh": "UUID", "en": "UUID" }, "placeholder": { "zh": "例: 550e8400-e29b-41d4-a716-446655440000", "en": "e.g. 550e8400-e29b-41d4-a716-446655440000" } }],
+      "type": "value",
+      "group": "session"
+    },
+    {
+      "flag": "--tools",
+      "description": { "zh": "指定可用的内置工具", "en": "Specify available built-in tools" },
+      "required_args": [],
+      "type": "single",
+      "group": "tools",
+      "choices": [
+        { "value": "default", "label": { "zh": "所有工具（默认）", "en": "All tools (default)" } },
+        { "value": "", "label": { "zh": "禁用所有工具", "en": "Disable all tools" } },
+        { "value": "Bash,Edit,Read", "label": { "zh": "仅 Bash/Edit/Read", "en": "Bash/Edit/Read only" } }
+      ]
+    },
+    {
+      "flag": "--bare",
+      "description": { "zh": "最小化模式：跳过 hooks、LSP、插件同步、归属、auto-memory 等", "en": "Minimal mode: skip hooks, LSP, plugin sync, attribution, auto-memory" },
+      "required_args": [],
+      "type": "multi",
+      "group": "dev"
+    },
+    {
+      "flag": "--disable-slash-commands",
+      "description": { "zh": "禁用所有 skills", "en": "Disable all slash command skills" },
+      "required_args": [],
+      "type": "multi",
+      "group": "dev"
+    },
+    {
+      "flag": "--strict-mcp-config",
+      "description": { "zh": "仅使用 --mcp-config 指定的 MCP 服务器", "en": "Only use MCP servers from --mcp-config, ignoring other MCP configurations" },
+      "required_args": [],
+      "type": "multi",
+      "group": "dev"
+    },
+    {
+      "flag": "--mcp-config",
+      "description": { "zh": "从 JSON 文件加载 MCP 服务器配置", "en": "Load MCP servers from JSON files" },
+      "required_args": [{ "name": "config_path", "label": { "zh": "配置文件路径", "en": "Config file path" }, "placeholder": { "zh": "例: /path/to/mcp.json", "en": "e.g. /path/to/mcp.json" } }],
+      "type": "value",
+      "group": "mcp"
+    },
+    {
+      "flag": "-d",
+      "description": { "zh": "启用调试模式", "en": "Enable debug mode" },
+      "required_args": [],
+      "type": "multi",
+      "group": "debug"
+    },
+    {
+      "flag": "--debug",
+      "description": { "zh": "启用调试模式（可指定分类过滤）", "en": "Enable debug mode with optional category filtering" },
+      "required_args": [{ "name": "filter", "label": { "zh": "过滤分类", "en": "Filter category" }, "placeholder": { "zh": "例: api,hooks", "en": "e.g. api,hooks" } }],
+      "type": "value",
+      "group": "debug"
+    },
+    {
+      "flag": "--debug-file",
+      "description": { "zh": "将调试日志写入指定文件", "en": "Write debug logs to a specific file path" },
+      "required_args": [{ "name": "path", "label": { "zh": "日志文件路径", "en": "Log file path" }, "placeholder": { "zh": "例: /tmp/claude-debug.log", "en": "e.g. /tmp/claude-debug.log" } }],
+      "type": "value",
+      "group": "debug"
+    }
+  ]
+}
