@@ -10,6 +10,16 @@ from claude_run.runner import execute_claude, ExecuteError
 
 log = logging.getLogger(__name__)
 
+_LOGO = r"""
+   __  _       ____  __ __  ___      ___         ____   __ __  ____
+  /  ]| T     /    T|  T  T|   \    /  _]       |    \ |  T  T|    \
+ /  / | |    Y  o  ||  |  ||    \  /  [_  _____ |  D  )|  |  ||  _  Y
+/  /  | l___ |     ||  |  ||  D  YY    _]|     ||    / |  |  ||  |  |
+/   \_ |     T|  _  ||  :  ||     ||   [_ l_____j|    \ |  :  ||  |  |
+\     ||     ||  |  |l     ||     ||     T       |  .  Yl     ||  |  |
+ \____jl_____jl__j__j \__,_jl_____jl_____j       l__j\_j \__,_jl__j__j
+""".strip("\n")
+
 
 def setup_logging() -> None:
     if os.environ.get("DEBUG"):
@@ -24,6 +34,11 @@ def setup_logging() -> None:
         )
 
 
+def print_logo() -> None:
+    print(_LOGO)
+    print("by.BingMoe\n")
+
+
 def main() -> int:
     """
     主入口，返回退出码。
@@ -36,6 +51,7 @@ def main() -> int:
     5 - 其他未知错误
     """
     setup_logging()
+    print_logo()
 
     try:
         if is_first_run():
