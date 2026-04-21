@@ -1,0 +1,21 @@
+[project]
+name = "claude-run"
+version = "0.1.0"
+description = "A Linux-native CLI tool with TUI for selecting Claude Code startup flags"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "questionary>=2.1.1",
+]
+
+[project.scripts]
+claude-run = "claude_run.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
