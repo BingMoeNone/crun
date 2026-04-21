@@ -1,9 +1,14 @@
 # tests/test_flags.py
 import json
 import os
+from pathlib import Path
+
+from claude_run.flags import FlagGroup, load_flags, _default_flags_path
+
 
 def get_flags_path():
     return os.path.join(os.path.dirname(__file__), "..", "data", "flags_default.json")
+
 
 def test_flags_json_valid():
     path = get_flags_path()
@@ -12,6 +17,7 @@ def test_flags_json_valid():
     assert data["version"] == 1
     assert "flags" in data
     assert len(data["flags"]) > 0
+
 
 def test_flag_structure():
     path = get_flags_path()
@@ -43,7 +49,6 @@ def test_flag_structure():
                 if arg.get("placeholder"):
                     assert isinstance(arg["placeholder"], dict)
 
-from claude_run.flags import Flag, FlagGroup, load_flags
 
 def test_load_flags_default():
     flags = load_flags()
@@ -57,11 +62,13 @@ def test_load_flags_default():
     assert "debug" in group_map
     assert "mcp" in group_map
 
+
 def test_flag_has_label():
     flags = load_flags()
     model_flag = next(f for f in flags if f.flag == "--model")
     assert model_flag.label("zh") == "当前会话使用的模型"
     assert model_flag.label("en") == "Model for the current session"
+
 
 def test_flag_get_display_choices():
     flags = load_flags()
@@ -70,14 +77,34 @@ def test_flag_get_display_choices():
     assert len(choices) == 3
     assert choices[0]["value"] == "opus"
 
+
 def test_flag_requires_value():
     flags = load_flags()
     mcp_flag = next(f for f in flags if f.flag == "--mcp-config")
     assert mcp_flag.requires_value() == True
     assert mcp_flag.required_args[0].label_str("zh") == "配置文件路径"
 
+
 def test_group_flags():
     flags = load_flags()
     groups = FlagGroup.group_by(flags)
     assert "model" in groups
     assert all(f.group == "model" for f in groups["model"])
+
+
+def test_default_flags_path_source_mode(monkeypatch):
+    monkeypatch.delattr("sys._MEIPASS", raising=False)
+    p = _default_flags_path()
+    assert p.name == "flags_default.json"
+    assert p.exists()
+
+
+def test_default_flags_path_pyinstaller_mode(monkeypatch, tmp_path):
+    meipass = tmp_path / "bundle"
+    data_dir = meipass / "data"
+    data_dir.mkdir(parents=True)
+    target = data_dir / "flags_default.json"
+    target.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr("sys._MEIPASS", str(meipass), raising=False)
+    assert _default_flags_path() == target
+

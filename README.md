@@ -22,7 +22,29 @@
 - **可自定义参数**：支持 `~/.config/claude-run/flags_custom.json` 覆盖或扩展默认参数
 - **多语言界面**：首次运行向导支持中文/English
 
-### 安装
+### 快速安装（二进制）
+
+支持 Linux `amd64` / `arm64`。
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.sh | bash
+```
+
+指定版本安装：
+
+```bash
+CLAUDE_RUN_VERSION=v0.2.0 curl -fsSL https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.sh | bash
+```
+
+可选环境变量：
+
+- `CLAUDE_RUN_REPO`：默认 `BingMoeNone/claude-run`
+- `CLAUDE_RUN_VERSION`：默认 `latest`
+- `CLAUDE_RUN_INSTALL_DIR`：安装目录（默认优先 `/usr/local/bin`，无权限时回退 `~/.local/bin`）
+
+> 注意：`claude-run` 会调用系统中的 `claude` 命令，请先确保 Claude Code CLI 已安装并在 PATH 中。
+
+### 源码安装
 
 ```bash
 git clone git@github.com:BingMoeNone/claude-run.git
@@ -107,6 +129,15 @@ uv pip install -e .
 uv run pytest tests/ -v
 ```
 
+### 本地打包二进制
+
+```bash
+uv sync --all-groups
+uv run pyinstaller --onefile --name claude-run --paths src --add-data "data/flags_default.json:data" src/claude_run/__main__.py
+```
+
+输出文件：`dist/claude-run`
+
 ---
 
 ## English
@@ -121,7 +152,29 @@ uv run pytest tests/ -v
 - **Custom flag extension** via `~/.config/claude-run/flags_custom.json`
 - **Bilingual UI** with first-run wizard (Chinese / English)
 
-### Installation
+### Quick Install (binary)
+
+Linux `amd64` / `arm64` are supported.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.sh | bash
+```
+
+Install a specific version:
+
+```bash
+CLAUDE_RUN_VERSION=v0.2.0 curl -fsSL https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.sh | bash
+```
+
+Optional environment variables:
+
+- `CLAUDE_RUN_REPO` (default: `BingMoeNone/claude-run`)
+- `CLAUDE_RUN_VERSION` (default: `latest`)
+- `CLAUDE_RUN_INSTALL_DIR` (install dir; default prefers `/usr/local/bin`, falls back to `~/.local/bin`)
+
+> Note: `claude-run` calls the `claude` command on your system. Make sure Claude Code CLI is installed and available in PATH.
+
+### Install from source
 
 ```bash
 git clone git@github.com:BingMoeNone/claude-run.git
@@ -179,6 +232,15 @@ Directory: `~/.config/claude-run/`
 uv pip install -e .
 uv run pytest tests/ -v
 ```
+
+### Build binary locally
+
+```bash
+uv sync --all-groups
+uv run pyinstaller --onefile --name claude-run --paths src --add-data "data/flags_default.json:data" src/claude_run/__main__.py
+```
+
+Output binary: `dist/claude-run`
 
 ---
 

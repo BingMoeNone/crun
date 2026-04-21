@@ -1,13 +1,21 @@
 """参数定义与加载：支持默认 + 用户自定义合并。"""
 import json
 import logging
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
-DEFAULT_FLAGS_PATH = DATA_DIR / "flags_default.json"
+
+def _default_flags_path() -> Path:
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        return Path(meipass) / "data" / "flags_default.json"
+    return Path(__file__).parent.parent.parent / "data" / "flags_default.json"
+
+
+DEFAULT_FLAGS_PATH = _default_flags_path()
 CUSTOM_FLAGS_PATH = Path.home() / ".config" / "claude-run" / "flags_custom.json"
 
 
