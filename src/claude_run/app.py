@@ -1,369 +1,566 @@
-"""claude-run 主 TUI 应用。
+"""claude-run 主交互逻辑。
 
-分层：
-  Header           ← 标题栏
-  UnifiedSearch    ← 可选：顶部常驻搜索框 (B/both)
-  Main             ← 内容区：左侧分组 + 右侧参数表单
-  FuzzySearch      ← 可选：底部临时搜索框 (A/both)
-  StatusBar        ← 状态栏：已选数量 + 命令预览
-  Footer           ← 底部提示：显示已绑定快捷键
+主界面用 prompt_toolkit 构建（直接全量展示所有参数，/ 触发实时搜索）。
+子选项追问和确认步骤用 questionary。
 """
-from textual import on
-from textual.app import App, ComposeResult
-from textual.binding import Binding
-from textual.containers import Container, Horizontal, VerticalScroll
-from textual.widgets import (
-    Header, Footer, Static, Input, Checkbox, Button,
-    ListView, ListItem, RadioSet,
-)
+import os
+from datetime import datetime, timezone
 
-from claude_run.flags import Flag, FlagGroup, load_flags, FlagsLoadError
+import questionary
+from questionary import Style as QStyle
+from prompt_toolkit import Application
+from prompt_toolkit.filters import Condition
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.layout import Layout
+from prompt_toolkit.layout.containers import Window
+from prompt_toolkit.layout.controls import FormattedTextControl
+from prompt_toolkit.styles import Style as PTStyle
+
+from claude_run.flags import Flag, load_flags, FlagsLoadError
 from claude_run.search import search_flags
 from claude_run.runner import build_argv, validate_argv, SelectedFlag
-from claude_run.widgets import FlagRow
-from claude_run.help import HelpScreen
+from claude_run.config import load_last_config, save_last_config, ConfigError
 
 
-GROUP_LABELS: dict[str, tuple[str, str]] = {
-    "model":      ("模型", "Model"),
-    "permission": ("权限", "Permission"),
-    "output":     ("输出", "Output"),
-    "session":    ("会话", "Session"),
-    "tools":      ("工具", "Tools"),
-    "dev":        ("开发", "Dev"),
-    "debug":      ("调试", "Debug"),
-    "mcp":        ("MCP",  "MCP"),
+# ── 样式 ─────────────────────────────────────────────────────────────────────
+
+_Q_STYLE = QStyle([
+    ("qmark",       "fg:#5f87ff bold"),
+    ("question",    "bold"),
+    ("answer",      "fg:#5fffaf bold"),
+    ("pointer",     "fg:#5f87ff bold"),
+    ("highlighted", "fg:#5f87ff bold"),
+    ("selected",    "fg:#5fffaf"),
+    ("separator",   "fg:#6c6c6c"),
+    ("instruction", "fg:#6c6c6c"),
+    ("disabled",    "fg:#6c6c6c italic"),
+])
+
+_PT_STYLE = PTStyle.from_dict({
+    "hint":          "fg:ansibrightblack",
+    "search-bar":    "fg:ansiyellow bold",
+    "sep":           "fg:ansibrightblack",
+    "scroll":        "fg:ansibrightblack",
+    "item-cur":      "fg:ansiblue bold reverse",
+    "item-cur-chk":  "fg:ansigreen bold reverse",
+    "item-chk":      "fg:ansigreen",
+    "item":          "",
+    "item-val":      "fg:ansicyan",
+    "status":        "fg:ansibrightblack italic",
+    "group-label":   "fg:ansibrightblack italic",
+})
+
+# ── 分组标签 ──────────────────────────────────────────────────────────────────
+
+_GROUP_LABELS: dict[str, tuple[str, str]] = {
+    "model":      ("模型",  "Model"),
+    "permission": ("权限",  "Permission"),
+    "output":     ("输出",  "Output"),
+    "session":    ("会话",  "Session"),
+    "tools":      ("工具",  "Tools"),
+    "dev":        ("开发",  "Dev"),
+    "mcp":        ("MCP",   "MCP"),
+    "debug":      ("调试",  "Debug"),
 }
 
 
-class MainApp(App):
-    """用两种主色（$accent / $success）+ 中性色，布局用 fr/% 自适应。"""
+def _glabel(name: str, lang: str) -> str:
+    zh, en = _GROUP_LABELS.get(name, (name, name))
+    return zh if lang == "zh" else en
 
-    CSS = """
-    Screen { background: $surface; }
 
-    /* 顶部统一搜索（B/both 模式） */
-    #unified-bar {
-        height: 3;
-        display: none;
-        border-bottom: solid $accent;
-    }
+# ── 子选项追问（questionary） ──────────────────────────────────────────────────
 
-    /* 内容区 */
-    #main { height: 1fr; }
-    #sidebar {
-        width: 20%;
-        min-width: 14;
-        max-width: 28;
-        border-right: solid $accent;
-        padding: 0 1;
-    }
-    #content { padding: 0 1; }
-    #group-list > ListItem.--highlight {
-        background: $accent 30%;
-        color: $text;
-    }
+def _prompt_flag_value(f: Flag, lang: str, existing: dict[str, str]) -> str | None:
+    """为 single/value 参数弹出子选项或文本输入，返回 None 表示取消。"""
+    if f.type == "single" and f.choices:
+        choices = [
+            questionary.Choice(c.label_str(lang), value=c.value)
+            for c in f.choices
+        ]
+        default_val = existing.get(f.flag)
+        matched = next((c for c in choices if c.value == default_val), None)
+        return questionary.select(
+            f"  {f.flag} — {f.label(lang)}:",
+            choices=choices,
+            default=matched,
+            style=_Q_STYLE,
+        ).ask()
 
-    /* 底部模糊搜索（A/both 模式临时） */
-    #search-bar {
-        height: 3;
-        display: none;
-        border-top: solid $accent;
-    }
+    if f.type == "value":
+        arg = f.required_args[0] if f.required_args else None
+        label = arg.label_str(lang) if arg else f.flag
+        placeholder = arg.placeholder_str(lang) if arg else ""
+        hint = f" [{placeholder}]" if placeholder else ""
+        return questionary.text(
+            f"  {label}{hint}:",
+            default=existing.get(f.flag, ""),
+            style=_Q_STYLE,
+        ).ask()
 
-    /* 状态栏 */
-    #statusbar {
-        height: 1;
-        padding: 0 1;
-        background: $panel;
-        color: $text-muted;
-    }
+    return None
 
-    /* 通用 */
-    .title { text-style: bold; color: $accent; }
-    .empty { color: $text-muted; padding: 1 2; }
+
+# ── prompt_toolkit 主选择界面 ─────────────────────────────────────────────────
+
+def _run_selector(
+    flags: list[Flag],
+    lang: str,
+    init_checked: set[str],
+    value_state: dict[str, str],
+) -> set[str] | None:
     """
+    全量标志选择器。
+    - 直接展示所有参数（按分组排列）
+    - 输入 / 进入实时搜索模式，Esc 退出搜索
+    - 空格切换选中，回车确认，Esc（非搜索时）退出
+    返回选中的 flag 名集合，或 None 表示取消。
+    """
+    try:
+        term_h = os.get_terminal_size().lines - 6
+        viewport_h = max(8, min(term_h, 20))
+    except OSError:
+        viewport_h = 15
 
-    TITLE = "claude-run"
-    SUB_TITLE = "选择 Claude CLI 参数并执行"
+    checked: set[str] = set(init_checked)
 
-    # 快捷键遵循规则 4：hjkl/方向、Enter、q/Esc、?。
-    BINDINGS = [
-        Binding("q,ctrl+c", "quit", "退出", priority=True),
-        Binding("question_mark", "help", "帮助"),
-        Binding("/,ctrl+s", "activate_search", "搜索"),
-        Binding("ctrl+u", "toggle_unified", "统一搜索", priority=True),
-        Binding("escape", "deactivate_search", "关闭搜索"),
-        Binding("f5,ctrl+r", "execute", "执行", priority=True),
-        Binding("j,down", "nav_down", show=False),
-        Binding("k,up", "nav_up", show=False),
-        Binding("h,left", "nav_left", show=False),
-        Binding("l,right", "nav_right", show=False),
-    ]
+    ctx = {
+        "cursor":    0,
+        "viewport":  0,
+        "in_search": False,
+        "search":    "",
+        "filtered":  list(flags),
+    }
 
-    def __init__(self, prefs):
-        super().__init__()
-        self.prefs = prefs
-        self.lang = prefs.language
-        try:
-            self.flags = load_flags()
-        except Exception as e:  # 规则 7：错误状态
-            self.flags = []
-            self._load_error = str(e)
+    def _get_filtered() -> list[Flag]:
+        q = ctx["search"]
+        return search_flags(flags, q, lang) if q else list(flags)
+
+    def _clamp() -> None:
+        n = len(ctx["filtered"])
+        if n == 0:
+            ctx["cursor"] = 0
+            ctx["viewport"] = 0
+            return
+        ctx["cursor"] = max(0, min(ctx["cursor"], n - 1))
+        c, v = ctx["cursor"], ctx["viewport"]
+        if c < v:
+            ctx["viewport"] = c
+        elif c >= v + viewport_h:
+            ctx["viewport"] = c - viewport_h + 1
+
+    # ── 渲染函数 ──────────────────────────────────────────────────────────────
+    def _render():
+        lines: list[tuple[str, str]] = []
+
+        # 标题 / 搜索栏
+        if ctx["in_search"]:
+            q = ctx["search"]
+            n = len(ctx["filtered"])
+            bar = (f"搜索: {q}▌  ({n} 项)  Esc 退出搜索"
+                   if lang == "zh" else
+                   f"Search: {q}▌  ({n} results)  Esc to exit")
+            lines.append(("class:search-bar", bar + "\n"))
         else:
-            self._load_error = None
-        self.groups = FlagGroup.group_by(self.flags)
-        self.group_names = list(self.groups.keys())
-        self.current_group_index = 0
-        self._state: dict[str, object] = {}
-        self.search_active = False
-        self.unified_active = False
+            hint = ("/ 搜索  空格 选中  回车 确认  Esc 退出"
+                    if lang == "zh" else
+                    "/ search  Space toggle  Enter confirm  Esc quit")
+            lines.append(("class:hint", hint + "\n"))
 
-    # ——— 布局 ———————————————————————————————————
-    def compose(self) -> ComposeResult:
-        yield Header(show_clock=False)
+        lines.append(("class:sep", "─" * 60 + "\n"))
 
-        with Container(id="unified-bar"):
-            yield Input(placeholder="统一搜索 · 实时过滤所有参数", id="unified-input")
+        filtered = ctx["filtered"]
+        vstart = ctx["viewport"]
+        vend = vstart + viewport_h
 
-        with Horizontal(id="main"):
-            with VerticalScroll(id="sidebar"):
-                yield Static("分组", classes="title")
-                yield ListView(id="group-list")
-            with VerticalScroll(id="content"):
-                yield Static("", id="content-title", classes="title")
-                yield Container(id="flag-list")
+        if vstart > 0:
+            lines.append(("class:scroll", "  ↑\n"))
 
-        with Container(id="search-bar"):
-            yield Input(placeholder="模糊搜索 · Esc 关闭", id="search-input")
+        prev_group = None
+        for i, f in enumerate(filtered[vstart:vend]):
+            abs_i = vstart + i
+            is_cur = abs_i == ctx["cursor"]
+            is_chk = f.flag in checked
 
-        yield Static("", id="statusbar")
-        yield Footer()
+            # 分组小标题（仅非搜索模式）
+            if not ctx["in_search"] and f.group != prev_group:
+                g = f"── {_glabel(f.group, lang)} "
+                lines.append(("class:group-label", g + "\n"))
+                prev_group = f.group
 
-    def on_mount(self) -> None:
-        if self._load_error:
-            self.query_one("#content-title", Static).update("⚠ 加载失败")
-            self.query_one("#flag-list", Container).mount(
-                Static(f"无法加载参数定义：{self._load_error}", classes="empty")
-            )
-            self._update_status()
-            return
+            mark = "●" if is_chk else "○"
+            val = value_state.get(f.flag, "")
 
-        lv = self.query_one("#group-list", ListView)
-        for name in self.group_names:
-            lv.append(ListItem(Static(self._group_label(name))))
-        if self.group_names:
-            lv.index = 0
-            self._show_group(self.group_names[0])
+            if f.type == "single" and f.choices:
+                suffix = f"  ={val}" if val else ("  [单选]" if lang == "zh" else "  [choice]")
+            elif f.type == "value":
+                suffix = f"  ={val}" if val else ("  [输入]" if lang == "zh" else "  [input]")
+            else:
+                suffix = ""
 
-        if self.prefs.search_mode in ("B", "both"):
-            self._set_unified_visible(True)
+            line = f" {mark} {f.flag}  {f.label(lang)}{suffix}\n"
+
+            if is_cur:
+                style = "class:item-cur-chk" if is_chk else "class:item-cur"
+            elif is_chk:
+                style = "class:item-chk"
+            else:
+                style = "class:item"
+
+            lines.append((style, line))
+
+        if vend < len(filtered):
+            lines.append(("class:scroll", "  ↓\n"))
+
+        n_chk = len(checked)
+        status = (f"  已选 {n_chk} 项" if lang == "zh" else f"  {n_chk} selected")
+        lines.append(("class:status", "\n" + status))
+
+        return lines
+
+    # ── 按键绑定 ──────────────────────────────────────────────────────────────
+    kb = KeyBindings()
+    in_search_filter = Condition(lambda: ctx["in_search"])
+
+    @kb.add("up", eager=True)
+    @kb.add("k", eager=True, filter=~in_search_filter)
+    def _up(event):
+        ctx["cursor"] = max(0, ctx["cursor"] - 1)
+        _clamp()
+        event.app.invalidate()
+
+    @kb.add("down", eager=True)
+    @kb.add("j", eager=True, filter=~in_search_filter)
+    def _down(event):
+        ctx["cursor"] = min(len(ctx["filtered"]) - 1, ctx["cursor"] + 1)
+        _clamp()
+        event.app.invalidate()
+
+    @kb.add("pageup", eager=True)
+    def _pgup(event):
+        ctx["cursor"] = max(0, ctx["cursor"] - viewport_h)
+        _clamp()
+        event.app.invalidate()
+
+    @kb.add("pagedown", eager=True)
+    def _pgdn(event):
+        ctx["cursor"] = min(len(ctx["filtered"]) - 1, ctx["cursor"] + viewport_h)
+        _clamp()
+        event.app.invalidate()
+
+    @kb.add("space", eager=True)
+    def _toggle(event):
+        fl = ctx["filtered"]
+        if fl and 0 <= ctx["cursor"] < len(fl):
+            name = fl[ctx["cursor"]].flag
+            if name in checked:
+                checked.discard(name)
+            else:
+                checked.add(name)
+        event.app.invalidate()
+
+    @kb.add("/", eager=True, filter=~in_search_filter)
+    def _enter_search(event):
+        ctx["in_search"] = True
+        ctx["search"] = ""
+        ctx["filtered"] = list(flags)
+        ctx["cursor"] = 0
+        ctx["viewport"] = 0
+        event.app.invalidate()
+
+    @kb.add("escape", eager=True)
+    def _escape(event):
+        if ctx["in_search"]:
+            ctx["in_search"] = False
+            ctx["search"] = ""
+            ctx["filtered"] = list(flags)
+            ctx["cursor"] = 0
+            ctx["viewport"] = 0
+            event.app.invalidate()
         else:
-            lv.focus()
-        self._update_status()
+            event.app.exit(result=None)
 
-    # ——— 渲染 ———————————————————————————————————
-    def _group_label(self, name: str) -> str:
-        zh, en = GROUP_LABELS.get(name, (name, name))
-        return zh if self.lang == "zh" else en
+    @kb.add("backspace", eager=True)
+    def _backspace(event):
+        if ctx["in_search"] and ctx["search"]:
+            ctx["search"] = ctx["search"][:-1]
+            ctx["filtered"] = _get_filtered()
+            ctx["cursor"] = 0
+            ctx["viewport"] = 0
+            event.app.invalidate()
 
-    def _show_group(self, group_name: str) -> None:
-        self.query_one("#content-title", Static).update(
-            f"◆ {self._group_label(group_name)}"
-        )
-        self._render_flags(self.groups.get(group_name, []))
+    @kb.add("enter", eager=True)
+    def _enter(event):
+        event.app.exit(result=checked)
 
-    def _render_flags(self, flags_list: list[Flag]) -> None:
-        container = self.query_one("#flag-list", Container)
-        container.remove_children()
-        if not flags_list:
-            container.mount(Static("（空·无匹配参数）", classes="empty"))
+    @kb.add("c-c", eager=True)
+    def _ctrl_c(event):
+        event.app.exit(result=None)
+
+    @kb.add("<any>")
+    def _any(event):
+        if not ctx["in_search"]:
             return
-        for f in flags_list:
-            container.mount(FlagRow(f, self.lang, self._state))
+        key = event.key_sequence[0].key
+        if isinstance(key, str) and key.isprintable():
+            ctx["search"] += key
+            ctx["filtered"] = _get_filtered()
+            ctx["cursor"] = 0
+            ctx["viewport"] = 0
+            event.app.invalidate()
 
-    def _update_status(self) -> None:
-        argv = build_argv(self._collect_selected())
-        count = len(argv) - 1  # 扣掉 "claude"
-        bar = self.query_one("#statusbar", Static)
-        if count == 0:
-            bar.update("已选 0 项 · 按 ? 查看帮助")
-        else:
-            bar.update(f"已选 {count} 项 · $ {' '.join(argv)}")
+    app = Application(
+        layout=Layout(Window(FormattedTextControl(_render, focusable=True))),
+        key_bindings=kb,
+        style=_PT_STYLE,
+        full_screen=False,
+        mouse_support=False,
+    )
 
-    # ——— 事件 ———————————————————————————————————
-    @on(ListView.Highlighted, "#group-list")
-    def on_group_highlighted(self, event: ListView.Highlighted) -> None:
-        idx = event.list_view.index
-        if idx is None:
-            return
-        self.current_group_index = idx
-        if not self._search_query_active():
-            self._show_group(self.group_names[idx])
+    return app.run()
 
-    @on(ListView.Selected, "#group-list")
-    def on_group_selected(self, _: ListView.Selected) -> None:
-        # Enter 在分组列表上 = 执行，符合规则 4。
-        self.action_execute()
 
-    @on(Checkbox.Changed)
-    def on_cb_changed(self, event: Checkbox.Changed) -> None:
-        row = self._find_row(event.control)
-        if row is None:
-            return
-        self._state[row.flag.flag] = event.value
-        row.refresh_border()
-        self._update_status()
+# ── 构建 SelectedFlag 列表 ───────────────────────────────────────────────────
 
-    @on(RadioSet.Changed)
-    def on_rs_changed(self, event: RadioSet.Changed) -> None:
-        row = self._find_row(event.control)
-        if row is None:
-            return
-        val = event.pressed.name if event.pressed is not None else None
-        self._state[row.flag.flag] = val
-        row.refresh_border()
-        self._update_status()
 
-    @on(Input.Changed, "#search-input")
-    def on_fuzzy_changed(self, event: Input.Changed) -> None:
-        if self.search_active:
-            self._apply_search(event.value)
+def _build_selected(
+    flag_objs: list[Flag],
+    value_state: dict[str, str],
+) -> list[SelectedFlag]:
+    res: list[SelectedFlag] = []
+    for f in flag_objs:
+        if f.type == "multi":
+            res.append(SelectedFlag(f.flag))
+        elif f.type in ("single", "value"):
+            v = value_state.get(f.flag, "")
+            if v:
+                res.append(SelectedFlag(f.flag, v))
+    return res
 
-    @on(Input.Changed, "#unified-input")
-    def on_unified_changed(self, event: Input.Changed) -> None:
-        if self.unified_active:
-            self._apply_search(event.value)
 
-    @on(Input.Changed)
-    def on_value_input_changed(self, event: Input.Changed) -> None:
-        if event.input.id in ("search-input", "unified-input"):
-            return
-        row = self._find_row(event.input)
-        if row is None or row.flag.type != "value":
-            return
-        self._state[row.flag.flag] = event.value
-        row.refresh_border()
-        self._update_status()
+def _build_last_config_snapshot(
+    selected: list[SelectedFlag],
+    flags_by_name: dict[str, Flag],
+) -> dict:
+    payload: list[dict] = []
+    for sel in selected:
+        f = flags_by_name.get(sel.flag)
+        if f is None:
+            continue
+        if f.type == "multi":
+            payload.append({"flag": f.flag, "type": "multi", "value": True})
+        elif f.type in ("single", "value") and sel.value:
+            payload.append({"flag": f.flag, "type": f.type, "value": sel.value})
 
-    # ——— Actions ————————————————————————————————
-    def action_help(self) -> None:
-        self.push_screen(HelpScreen())
+    return {
+        "version": 1,
+        "saved_at": datetime.now(timezone.utc).isoformat(),
+        "selected": payload,
+    }
 
-    def action_nav_down(self) -> None:
-        if self._in_text_input():
-            return
-        lv = self.query_one("#group-list", ListView)
-        if not lv.has_focus:
-            lv.focus()
-        lv.action_cursor_down()
 
-    def action_nav_up(self) -> None:
-        if self._in_text_input():
-            return
-        lv = self.query_one("#group-list", ListView)
-        if not lv.has_focus:
-            lv.focus()
-        lv.action_cursor_up()
+def _sanitize_last_config(last_cfg: dict | None, flags: list[Flag]) -> tuple[list[SelectedFlag], int]:
+    """将历史配置清洗为当前可用的 SelectedFlag 列表，返回 (结果, 丢弃数量)。"""
+    if not isinstance(last_cfg, dict):
+        return [], 0
+    items = last_cfg.get("selected")
+    if not isinstance(items, list):
+        return [], 0
 
-    def action_nav_left(self) -> None:
-        if self._in_text_input():
-            return
-        self.query_one("#group-list", ListView).focus()
+    by_name = {f.flag: f for f in flags}
+    result: list[SelectedFlag] = []
+    dropped = 0
 
-    def action_nav_right(self) -> None:
-        if self._in_text_input():
-            return
-        # 把焦点送入右侧第一个可交互控件
-        for row in self.query(FlagRow):
-            for cls in (RadioSet, Checkbox, Input):
-                widgets = row.query(cls)
-                if widgets:
-                    widgets.first().focus()
-                    return
+    for item in items:
+        if not isinstance(item, dict):
+            dropped += 1
+            continue
+        flag_name = item.get("flag")
+        item_type = item.get("type")
+        item_value = item.get("value")
 
-    def action_activate_search(self) -> None:
-        bar = self.query_one("#search-bar", Container)
-        bar.styles.display = "block"
-        self.search_active = True
-        inp = self.query_one("#search-input", Input)
-        inp.focus()
-        self._apply_search(inp.value)
+        if not isinstance(flag_name, str) or not isinstance(item_type, str):
+            dropped += 1
+            continue
 
-    def action_deactivate_search(self) -> None:
-        if self.search_active:
-            self.search_active = False
-            self.query_one("#search-bar", Container).styles.display = "none"
-            self.query_one("#search-input", Input).value = ""
-            if not (self.unified_active and
-                    self.query_one("#unified-input", Input).value.strip()):
-                self._show_group(self.group_names[self.current_group_index])
-            self.query_one("#group-list", ListView).focus()
+        f = by_name.get(flag_name)
+        if f is None or f.type != item_type:
+            dropped += 1
+            continue
 
-    def action_toggle_unified(self) -> None:
-        self._set_unified_visible(not self.unified_active)
+        if f.type == "multi":
+            if item_value is True:
+                result.append(SelectedFlag(flag_name))
+            else:
+                dropped += 1
+        elif f.type == "single":
+            if not isinstance(item_value, str) or not item_value:
+                dropped += 1
+                continue
+            allowed = {c.value for c in (f.choices or [])}
+            if item_value not in allowed:
+                dropped += 1
+                continue
+            result.append(SelectedFlag(flag_name, item_value))
+        elif f.type == "value":
+            if not isinstance(item_value, str) or not item_value:
+                dropped += 1
+                continue
+            result.append(SelectedFlag(flag_name, item_value))
 
-    def action_execute(self) -> None:
-        """执行：构建 argv，验证，然后退出。"""
-        argv = build_argv(self._collect_selected())
-        # 验证命令是否可执行
-        valid, err_msg = validate_argv(argv)
-        if not valid:
-            # 在状态栏显示错误
-            bar = self.query_one("#statusbar", Static)
-            bar.update(f"❌ {err_msg}")
-            return
-        self.exit(argv)
+    return result, dropped
 
-    # ——— 内部辅助 ——————————————————————————————
-    def _in_text_input(self) -> bool:
-        return isinstance(self.focused, Input)
 
-    def _search_query_active(self) -> bool:
-        return (self.search_active or
-                (self.unified_active and
-                 bool(self.query_one("#unified-input", Input).value.strip())))
+# ── 主入口 ────────────────────────────────────────────────────────────────────
 
-    def _set_unified_visible(self, visible: bool) -> None:
-        self.unified_active = visible
-        wrap = self.query_one("#unified-bar", Container)
-        wrap.styles.display = "block" if visible else "none"
-        if visible:
-            self.query_one("#unified-input", Input).focus()
-        else:
-            self.query_one("#unified-input", Input).value = ""
-            if not self.search_active:
-                self._show_group(self.group_names[self.current_group_index])
-
-    def _apply_search(self, query: str) -> None:
-        if not query.strip():
-            self._show_group(self.group_names[self.current_group_index])
-            return
-        results = search_flags(self.flags, query, self.lang)
-        self.query_one("#content-title", Static).update(
-            f"◆ 搜索：“{query}”  ({len(results)} 项)"
-        )
-        self._render_flags(results)
-
-    def _find_row(self, widget) -> FlagRow | None:
-        node = widget
-        while node is not None:
-            if isinstance(node, FlagRow):
-                return node
-            node = node.parent
+def run_app(prefs) -> list[str] | None:
+    """主交互入口。返回 argv 列表，或 None 表示用户取消。"""
+    try:
+        flags = load_flags()
+    except FlagsLoadError as e:
+        print(f"❌ 无法加载参数定义：{e}")
         return None
 
-    def _collect_selected(self) -> list[SelectedFlag]:
-        res: list[SelectedFlag] = []
-        by_name = {f.flag: f for f in self.flags}
-        for flag_name, val in self._state.items():
-            f = by_name.get(flag_name)
-            if f is None:
+    flags_by_name = {f.flag: f for f in flags}
+    lang = prefs.language
+    checked: set[str] = set()
+    value_state: dict[str, str] = {}
+
+    if lang == "zh":
+        print("claude-run · 选择 Claude CLI 启动参数\n")
+    else:
+        print("claude-run · Select Claude CLI startup flags\n")
+
+    while True:
+        prev_checked = set(checked)
+
+        result = _run_selector(flags, lang, checked, value_state)
+
+        if result is None:
+            return None
+
+        checked = result
+
+        for name in prev_checked - checked:
+            value_state.pop(name, None)
+
+        newly_added = [
+            f for f in flags
+            if f.flag in (checked - prev_checked) and f.type in ("single", "value")
+        ]
+        if newly_added:
+            if lang == "zh":
+                print("\n  ↳ 以下参数需要指定值：")
+            else:
+                print("\n  ↳ The following flags need a value:")
+            for f in newly_added:
+                val = _prompt_flag_value(f, lang, value_state)
+                if val is None:
+                    checked.discard(f.flag)
+                    continue
+                value_state[f.flag] = val
+
+        selected_objs = [f for f in flags if f.flag in checked]
+        print()
+        if not selected_objs:
+            print("（尚未选择任何参数）" if lang == "zh" else "(No flags selected)")
+        else:
+            print("当前已选：" if lang == "zh" else "Currently selected:")
+            for f in selected_objs:
+                val = value_state.get(f.flag)
+                suffix = f"  = {val}" if val else ""
+                print(f"  {f.flag}{suffix}")
+        print()
+
+        action = questionary.select(
+            "下一步：" if lang == "zh" else "Next:",
+            choices=[
+                questionary.Choice("▶ 执行" if lang == "zh" else "▶ Run", value="run"),
+                questionary.Choice("＋ 继续选择" if lang == "zh" else "＋ More", value="more"),
+                questionary.Choice("✎ 修改已选值" if lang == "zh" else "✎ Edit", value="edit"),
+                questionary.Choice("✗ 清空重选" if lang == "zh" else "✗ Reset", value="reset"),
+                questionary.Choice("✗ 取消退出" if lang == "zh" else "✗ Quit", value="quit"),
+            ],
+            style=_Q_STYLE,
+        ).ask()
+
+        if action is None or action == "quit":
+            return None
+
+        if action == "reset":
+            checked.clear()
+            value_state.clear()
+            continue
+
+        if action == "more":
+            continue
+
+        if action == "edit":
+            editable = [f for f in selected_objs if f.type in ("single", "value")]
+            if not editable:
+                print("没有可编辑的参数。\n" if lang == "zh" else "Nothing to edit.\n")
                 continue
-            if f.type == "multi" and val is True:
-                res.append(SelectedFlag(flag_name))
-            elif f.type == "single" and isinstance(val, str) and val:
-                res.append(SelectedFlag(flag_name, val))
-            elif f.type == "value" and isinstance(val, str) and val:
-                res.append(SelectedFlag(flag_name, val))
-        return res
+            for f in editable:
+                val = _prompt_flag_value(f, lang, value_state)
+                if val is not None:
+                    value_state[f.flag] = val
+            continue
+
+        selected: list[SelectedFlag]
+        argv: list[str]
+
+        if not selected_objs:
+            last_cfg = load_last_config()
+            restored, dropped = _sanitize_last_config(last_cfg, flags)
+            if not restored:
+                print("未找到可用的上次配置。\n" if lang == "zh" else "No usable last configuration found.\n")
+                continue
+
+            argv = build_argv(restored)
+            if dropped > 0:
+                print(
+                    f"检测到 {dropped} 个历史参数已失效，已自动忽略。"
+                    if lang == "zh"
+                    else f"{dropped} stale history items were ignored."
+                )
+            print(f"\n上次配置：{' '.join(argv)}\n" if lang == "zh" else f"\nLast config: {' '.join(argv)}\n")
+
+            reuse = questionary.select(
+                "当前未选择参数，是否使用上次配置？" if lang == "zh" else "No flags selected. Use last config?",
+                choices=[
+                    questionary.Choice("使用上次配置" if lang == "zh" else "Use last config", value="use"),
+                    questionary.Choice("重新选择" if lang == "zh" else "Reselect", value="reselect"),
+                    questionary.Choice("取消退出" if lang == "zh" else "Cancel", value="cancel"),
+                ],
+                style=_Q_STYLE,
+            ).ask()
+
+            if reuse == "reselect":
+                continue
+            if reuse != "use":
+                return None
+            selected = restored
+        else:
+            selected = _build_selected(selected_objs, value_state)
+            argv = build_argv(selected)
+
+        valid, err_msg = validate_argv(argv)
+        if not valid:
+            print(f"❌ {err_msg}\n")
+            continue
+
+        cmd_preview = " ".join(argv)
+        print(f"\n将执行：{cmd_preview}\n" if lang == "zh" else f"\nWill run: {cmd_preview}\n")
+
+        confirm = questionary.confirm(
+            "确认执行？" if lang == "zh" else "Confirm?",
+            default=True,
+            style=_Q_STYLE,
+        ).ask()
+
+        if confirm:
+            try:
+                save_last_config(_build_last_config_snapshot(selected, flags_by_name))
+            except ConfigError as e:
+                print(f"⚠ 保存上次配置失败: {e}" if lang == "zh" else f"⚠ Failed to save last config: {e}")
+            return argv

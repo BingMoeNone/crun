@@ -8,7 +8,7 @@ log = logging.getLogger(__name__)
 
 CONFIG_DIR = Path.home() / ".config" / "claude-run"
 PREFERENCES_PATH = CONFIG_DIR / "preferences.json"
-FLAGS_CUSTOM_PATH = CONFIG_DIR / "flags_custom.json"
+LAST_CONFIG_PATH = CONFIG_DIR / "last_config.json"
 
 
 class ConfigError(Exception):
@@ -96,3 +96,46 @@ def mark_first_run_done(path: Path | None = None) -> None:
     except ConfigError:
         # 如果无法保存，静默忽略（不影响后续运行）
         pass
+
+
+def save_last_config(data: dict, path: Path | None = None) -> None:
+    """保存上次执行配置到 JSON 文件。"""
+    path = path or LAST_CONFIG_PATH
+    try:
+        ensure_config_dir()
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except PermissionError as e:
+        raise ConfigError(f"无法写入配置文件 {path}: 权限不足") from e
+    except OSError as e:
+        raise ConfigError(f"无法写入配置文件 {path}: {e}") from e
+
+
+def load_last_config(path: Path | None = None) -> dict | None:
+    """加载上次执行配置，损坏或不存在时返回 None。"""
+    path = path or LAST_CONFIG_PATH
+    if not path.exists():
+        return None
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return None
+        if data.get("version") != 1:
+            return None
+        if not isinstance(data.get("selected"), list):
+            return None
+        return data
+    except json.JSONDecodeError as e:
+        log.warning(f"配置文件 {path} JSON 损坏: {e}，忽略上次配置")
+        return None
+    except PermissionError:
+        log.warning(f"无法读取配置文件 {path}: 权限不足，忽略上次配置")
+        return None
+    except OSError as e:
+        log.warning(f"无法读取配置文件 {path}: {e}，忽略上次配置")
+        return None
+    except Exception as e:
+        log.warning(f"加载上次配置 {path} 失败: {e}，忽略")
+        return None

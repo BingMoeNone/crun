@@ -5,7 +5,7 @@ description = "A Linux-native CLI tool with TUI for selecting Claude Code startu
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "textual>=0.50.0",
+    "questionary>=2.1.1",
 ]
 
 [project.scripts]

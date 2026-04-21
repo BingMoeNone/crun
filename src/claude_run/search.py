@@ -32,18 +32,29 @@ def fuzzy_match(query: str, target: str) -> int:
 
 def search_flags(flags: Sequence, query: str, lang: str = "zh") -> list:
     """
-    Search flags by flag name, zh description, or en description.
+    Search flags by flag name, zh/en description, and choice labels/values.
     Returns sorted list of flags by match score (highest first).
     """
     if not query.strip():
         return list(flags)
 
+    alt_lang = "en" if lang == "zh" else "zh"
     results = []
     for flag in flags:
+        choice_score = 0
+        if flag.choices:
+            for c in flag.choices:
+                choice_score = max(
+                    choice_score,
+                    fuzzy_match(query, c.value),
+                    fuzzy_match(query, c.label_str(lang)),
+                    fuzzy_match(query, c.label_str(alt_lang)),
+                )
         score = max(
             fuzzy_match(query, flag.flag),
             fuzzy_match(query, flag.label(lang)),
-            fuzzy_match(query, flag.label("en" if lang == "zh" else "zh")),
+            fuzzy_match(query, flag.label(alt_lang)),
+            choice_score,
         )
         if score > 0:
             results.append((score, flag))
