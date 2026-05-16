@@ -132,7 +132,7 @@ def _parse_flags(data: dict) -> list[Flag]:
 
             conflicts_with = item.get("conflicts_with")
             if isinstance(conflicts_with, list):
-                conflicts_with = [str(c) for c in conflicts_with if isinstance(c, str)]
+                conflicts_with = [str(c) for c in conflicts_with if isinstance(c, str)] or None
             else:
                 conflicts_with = None
 
