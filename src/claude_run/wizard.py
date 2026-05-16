@@ -5,7 +5,7 @@ from claude_run.config import Preferences, save_preferences, CONFIG_DIR, ConfigE
 
 
 def run_wizard(prefs: Preferences) -> Preferences:
-    print("欢迎使用 claude-run — 一个帮你选择 Claude CLI 启动参数的工具。\n")
+    print("欢迎使用 crun — 一个帮你选择 Claude CLI 启动参数的工具。\n")
 
     search_mode = questionary.select(
         "搜索模式：",

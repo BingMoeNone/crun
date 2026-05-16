@@ -16,7 +16,7 @@ def _default_flags_path() -> Path:
 
 
 DEFAULT_FLAGS_PATH = _default_flags_path()
-CUSTOM_FLAGS_PATH = Path.home() / ".config" / "claude-run" / "flags_custom.json"
+CUSTOM_FLAGS_PATH = Path.home() / ".config" / "crun" / "flags_custom.json"
 
 
 class FlagsLoadError(Exception):

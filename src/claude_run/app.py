@@ -1,4 +1,4 @@
-"""claude-run 主交互逻辑。
+"""crun 主交互逻辑。
 
 主界面用 prompt_toolkit 构建（直接全量展示所有参数，/ 触发实时搜索）。
 子选项追问和确认步骤用 questionary。
@@ -439,9 +439,9 @@ def run_app(prefs) -> list[str] | None:
     value_state: dict[str, str] = {}
 
     if lang == "zh":
-        print("claude-run · 选择 Claude CLI 启动参数\n")
+        print("crun · 选择 Claude CLI 启动参数\n")
     else:
-        print("claude-run · Select Claude CLI startup flags\n")
+        print("crun · Select Claude CLI startup flags\n")
 
     while True:
         prev_checked = set(checked)
