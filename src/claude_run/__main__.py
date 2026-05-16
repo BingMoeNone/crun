@@ -66,24 +66,46 @@ def print_logo() -> None:
 
 
 def _check_windows_terminal() -> None:
-    """On Windows, refuse to run in classic console host (conhost).
+    """On Windows, enable VT processing and UTF-8 on classic conhost.
 
-    crun's TUI relies on ANSI/VT escape sequences that conhost cannot
-    render correctly. Windows Terminal is required.
+    crun's TUI needs ANSI/VT escape sequences. conhost on Win10 1511+
+    supports them but may need VT mode enabled and code page set to UTF-8.
+    Falls back to a clear error if the console is too old.
     """
     if platform.system() != "Windows":
         return
     if os.environ.get("WT_SESSION") or os.environ.get("TERM_PROGRAM"):
         return
+
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+
+        # Enable ANSI/VT processing on Windows 10 1511+
+        STD_OUTPUT_HANDLE = -11
+        ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+        handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
+        mode = ctypes.c_ulong()
+        if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            mode.value |= ENABLE_VIRTUAL_TERMINAL_PROCESSING
+            kernel32.SetConsoleMode(handle, mode)
+
+        # Set UTF-8 I/O so Unicode box-drawing and CJK render correctly
+        CP_UTF8 = 65001
+        kernel32.SetConsoleOutputCP(CP_UTF8)
+        kernel32.SetConsoleCP(CP_UTF8)
+        return
+    except Exception:
+        pass
+
     print("=" * 60)
     print("  ERROR: Unsupported terminal")
     print()
-    print("  crun requires Windows Terminal. The classic PowerShell")
-    print("  console (conhost) cannot render the TUI correctly.")
+    print("  crun could not enable ANSI/VT processing on this console.")
+    print("  Windows Terminal is required for the full TUI experience.")
     print()
-    print("  Install Windows Terminal:")
+    print("  Install: winget install Microsoft.WindowsTerminal")
     print("  https://aka.ms/terminal")
-    print()
     print("  Then run: wt crun")
     print("=" * 60)
     sys.exit(6)

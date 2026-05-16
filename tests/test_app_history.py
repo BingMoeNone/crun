@@ -96,13 +96,14 @@ def test_check_windows_terminal_in_wt(monkeypatch, capsys):
     assert captured.out == ""
 
 
-def test_check_windows_terminal_in_conhost(monkeypatch, capsys):
-    """Exits with code 6 when not in Windows Terminal."""
+def test_check_windows_terminal_in_conhost_fallback(monkeypatch, capsys):
+    """Exits with code 6 when VT enable fails (natural on Linux, old Windows)."""
     import platform as pt
     import pytest
     monkeypatch.setattr(pt, "system", lambda: "Windows")
     monkeypatch.delenv("WT_SESSION", raising=False)
     monkeypatch.delenv("TERM_PROGRAM", raising=False)
+    # On Linux, ctypes.windll does not exist -> except -> exit(6)
     from claude_run.__main__ import _check_windows_terminal
     with pytest.raises(SystemExit) as exc_info:
         _check_windows_terminal()
