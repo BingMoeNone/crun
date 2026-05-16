@@ -59,6 +59,7 @@ def setup_logging() -> None:
 
 def print_logo() -> None:
     print(_LOGO)
+    print(f"  v{__version__}")
     print("  by.BingMoe")
     print()
 
