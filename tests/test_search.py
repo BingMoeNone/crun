@@ -190,3 +190,8 @@ def test_highlight_line_chinese():
     match_texts = [t for s, t in fragments if s == "class:match"]
     assert any("模" in t for t in match_texts)
     assert any("型" in t for t in match_texts)
+
+def test_highlight_line_partial_no_highlight():
+    """只有部分 query 匹配时不显示高亮（避免拼音匹配时的不完整高亮）"""
+    fragments = highlight_line("--model", "mox", "class:item", "class:match")
+    assert fragments == [("class:item", "--model")]

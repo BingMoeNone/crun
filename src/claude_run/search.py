@@ -107,6 +107,7 @@ def highlight_line(
     在 line 中用子序列匹配方式标记 query 的每个字符。
 
     返回: [(style, text), ...]，相邻同 style 片段已合并
+    只有当所有 query 字符都在 line 中找到时才返回高亮片段，否则返回原始样式。
     """
     if not query:
         return [(base_style, line)]
@@ -122,6 +123,10 @@ def highlight_line(
             matched = True
             qi += 1
         chars.append((ch, matched))
+
+    # 如果没有匹配到所有 query 字符，不显示高亮（避免拼音匹配时的不完整高亮）
+    if qi != len(q):
+        return [(base_style, line)]
 
     # 合并相邻同 style 字符
     fragments: list[tuple[str, str]] = []
