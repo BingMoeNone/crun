@@ -58,9 +58,16 @@ _GROUP_LABELS: dict[str, tuple[str, str]] = {
     "output":     ("输出",  "Output"),
     "session":    ("会话",  "Session"),
     "tools":      ("工具",  "Tools"),
+    "system":     ("系统提示", "System Prompt"),
     "dev":        ("开发",  "Dev"),
-    "mcp":        ("MCP",   "MCP"),
+    "mcp":        ("MCP/插件", "MCP/Plugin"),
     "debug":      ("调试",  "Debug"),
+    "agent":      ("Agent", "Agent"),
+    "ide":        ("IDE/浏览器", "IDE/Browser"),
+    "remote":     ("远程",  "Remote"),
+    "hook":       ("Hooks", "Hooks"),
+    "limit":      ("限制",  "Limits"),
+    "config":     ("配置",  "Config"),
 }
 
 
