@@ -1,5 +1,24 @@
 # tests/test_search.py
 
+# ── 拼音缓存 ────────────────────────────────
+_pinyin_cache: dict[str, str] = {}
+
+
+def _get_pinyin(text: str) -> str:
+    """返回中文文本的拼音串，带缓存。"""
+    if text in _pinyin_cache:
+        return _pinyin_cache[text]
+    try:
+        from pypinyin import lazy_pinyin, Style
+
+        segs = lazy_pinyin(text, style=Style.NORMAL)
+        result = "".join(segs)
+    except Exception:
+        result = text
+    _pinyin_cache[text] = result
+    return result
+
+
 def fuzzy_match(query: str, target: str) -> int:
     """Returns score > 0 if query matches target. Higher = better. 0 = no match."""
     query = query.lower()
@@ -25,16 +44,40 @@ def fuzzy_match(query: str, target: str) -> int:
     return 0
 
 def search_flags(flags, query: str, lang: str = "zh") -> list:
-    """Search flags by flag name, zh description, or en description."""
+    """Search flags by flag name, zh/en description, choice labels/values, and pinyin."""
     if not query.strip():
         return list(flags)
 
+    alt_lang = "en" if lang == "zh" else "zh"
     results = []
     for flag in flags:
+        # 拼音维度
+        pinyin_score = 0
+        if lang == "zh":
+            pinyin_desc = _get_pinyin(flag.label("zh"))
+            pinyin_score = fuzzy_match(query.lower(), pinyin_desc)
+
+        choice_score = 0
+        if flag.choices:
+            for c in flag.choices:
+                choice_score = max(
+                    choice_score,
+                    fuzzy_match(query, c.value),
+                    fuzzy_match(query, c.label_str(lang)),
+                    fuzzy_match(query, c.label_str(alt_lang)),
+                )
+                if lang == "zh":
+                    choice_score = max(
+                        choice_score,
+                        fuzzy_match(query.lower(), _get_pinyin(c.label_str("zh"))),
+                    )
+
         score = max(
             fuzzy_match(query, flag.flag),
             fuzzy_match(query, flag.label(lang)),
-            fuzzy_match(query, flag.label("en" if lang == "zh" else "zh")),
+            fuzzy_match(query, flag.label(alt_lang)),
+            choice_score,
+            pinyin_score,
         )
         if score > 0:
             results.append((score, flag))
@@ -44,11 +87,12 @@ def search_flags(flags, query: str, lang: str = "zh") -> list:
 
 # Mock flag for testing
 class MockFlag:
-    def __init__(self, flag, label_zh, label_en):
+    def __init__(self, flag, label_zh, label_en, choices=None):
         self.flag = flag
         self._label_zh = label_zh
         self._label_en = label_en
         self.description = {"zh": label_zh, "en": label_en}
+        self.choices = choices or []
 
     def label(self, lang):
         return self._label_zh if lang == "zh" else self._label_en
@@ -96,3 +140,23 @@ def test_search_flags_empty_query_returns_all():
 def test_search_flags_no_match():
     results = search_flags(FLAGS, "foobar", lang="zh")
     assert len(results) == 0
+
+
+def test_search_flags_by_pinyin():
+    """输入拼音 'moxing' 应匹配中文描述中的 '模型'"""
+    results = search_flags(FLAGS, "moxing", lang="zh")
+    assert any(r.flag == "--model" for r in results), \
+        "拼音 'moxing' 应匹配到 --model"
+
+
+def test_search_flags_by_pinyin_debug():
+    """输入拼音 'tiaoshi' 应匹配中文描述中的 '调试'"""
+    results = search_flags(FLAGS, "tiaoshi", lang="zh")
+    assert len(results) >= 2, f"拼音 'tiaoshi' 应匹配到至少 2 个结果，实际: {len(results)}"
+
+
+def test_search_flags_by_pinyin_partial():
+    """输入拼音 'mox' (部分拼音) 应匹配 '模型'"""
+    results = search_flags(FLAGS, "mox", lang="zh")
+    assert any(r.flag == "--model" for r in results), \
+        "部分拼音 'mox' 应匹配到 --model"
