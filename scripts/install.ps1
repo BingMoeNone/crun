@@ -118,6 +118,9 @@ debug "checksum = $ChecksumUrl"
 $TempDir = New-TemporaryFile | ForEach-Object { Remove-Item $_; New-Item $_ -ItemType Directory -Force }
 debug "temp_dir = $TempDir"
 
+# Ensure temp directory is always cleaned up on any exit
+try {
+
 $dlPath = Join-Path $TempDir $Asset
 
 info "Downloading $Asset ..."
@@ -255,5 +258,7 @@ if (Confirm-User "Add $InstallDir to user PATH?") {
 
 Write-Host ""
 
-# Cleanup
-Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+} finally {
+  # Cleanup — guaranteed to run on any exit path (success, error, Ctrl+C)
+  Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+}

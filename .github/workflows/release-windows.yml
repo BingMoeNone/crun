@@ -3,7 +3,7 @@ name: release-windows
 on:
   push:
     tags:
-      - "v*"
+      - "v*.*.*"
   workflow_dispatch:
 
 jobs:
