@@ -82,13 +82,19 @@ fi
 
 # ── Check existing installation ────────────────────────────────────────────────
 existing_version=""
+is_upgrade=false
 if [[ -x "${INSTALL_DIR}/crun" ]]; then
   existing_version="$( "${INSTALL_DIR}/crun" --version 2>/dev/null || true )"
   if [[ -n "${existing_version}" ]]; then
+    is_upgrade=true
     if [[ "${VERSION}" == "latest" ]]; then
       info "已安装 ${existing_version}，检查更新..."
     else
-      info "已安装 ${existing_version}，替换为 ${VERSION}..."
+      if [[ "${existing_version}" == *"${VERSION}"* ]]; then
+        info "已安装 ${existing_version}，重新安装..."
+      else
+        info "已安装 ${existing_version} → 升级到 ${VERSION}..."
+      fi
     fi
   fi
 fi
@@ -162,19 +168,48 @@ if [[ -f "${tmp_dir}/${asset}.sha256" ]]; then
   fi
 fi
 
-# ── Install ────────────────────────────────────────────────────────────────────
+# ── Install (atomic) ───────────────────────────────────────────────────────────
 mkdir -p "${INSTALL_DIR}"
-install -m 0755 "${tmp_dir}/${asset}" "${INSTALL_DIR}/crun"
+
+# Write to temp file on same filesystem, then mv for atomic replacement.
+# This ensures no partial binary if interrupted mid-write.
+tmp_bin="${INSTALL_DIR}/.crun.new.$$"
+chmod 0755 "${tmp_dir}/${asset}"
+cp "${tmp_dir}/${asset}" "${tmp_bin}"
+# fsync the file and its directory to ensure durability
+sync -f "${tmp_bin}" 2>/dev/null || true
+mv -f "${tmp_bin}" "${INSTALL_DIR}/crun"
 ok "已安装到 ${INSTALL_DIR}/crun"
 
-# ── Verify installed binary ────────────────────────────────────────────────────
-if [[ -z "${existing_version}" ]]; then
-  installed_version="$( "${INSTALL_DIR}/crun" --version 2>/dev/null || true )"
-  [[ -n "${installed_version}" ]] && echo "" && "${INSTALL_DIR}/crun" --version 2>/dev/null || true
+# ── Post-install verification ──────────────────────────────────────────────────
+installed_version="$( "${INSTALL_DIR}/crun" --version 2>/dev/null || true )"
+if [[ -z "${installed_version}" ]]; then
+  err "安装验证失败：二进制无法执行 (${INSTALL_DIR}/crun --version 无输出)"
+fi
+
+if ${is_upgrade}; then
+  echo ""
+  if [[ "${installed_version}" == "${existing_version}" ]]; then
+    info "版本未变化: ${installed_version}"
+  else
+    ok "升级完成: ${existing_version} → ${installed_version}"
+  fi
+else
+  echo ""
+  "${INSTALL_DIR}/crun" --version 2>/dev/null || true
 fi
 
 # ── Post-install ───────────────────────────────────────────────────────────────
 echo ""
+
+# Config preservation notice
+CONFIG_DIR="${HOME}/.config/crun"
+if ${is_upgrade}; then
+  if [[ -d "${CONFIG_DIR}" ]]; then
+    ok "用户配置已保留: ${CONFIG_DIR}"
+    echo "  (偏好设置、历史记录、预设方案等保持不变)"
+  fi
+fi
 
 # 检测 shell 配置文件
 detect_shell_rc() {

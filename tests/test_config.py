@@ -1,4 +1,5 @@
 # tests/test_config.py
+import json
 import tempfile
 from pathlib import Path
 from claude_run.config import (
@@ -105,7 +106,7 @@ def test_load_last_config_corrupted_returns_none():
 def test_load_last_config_invalid_version_returns_none():
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / "bad_version.json"
-        path.write_text('{"version":2,"selected":[]}', encoding="utf-8")
+        path.write_text('{"version":999,"selected":[]}', encoding="utf-8")
         assert load_last_config(path) is None
 
 
@@ -286,3 +287,124 @@ def test_keybindings_validation_strips_whitespace():
     kb = {"up": " k , up ", "down": " j , down "}
     warnings = _validate_keybindings(kb)
     assert len(warnings) == 0
+
+
+# ── Config version migration tests ──────────────────────────────────────────────
+
+from claude_run.config import CONFIG_VERSION, _migrate_config_versions
+
+
+def test_save_preferences_includes_version():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "preferences.json"
+        prefs = Preferences(search_mode="A", language="zh", first_run=False)
+        save_preferences(prefs, path)
+        import json
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert data["version"] == CONFIG_VERSION
+        assert data["search_mode"] == "A"
+
+
+def test_load_preferences_without_version_field():
+    """v0 config (no version field) should load as version-0 compat."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "preferences.json"
+        path.write_text(
+            '{"search_mode":"B","language":"en","first_run":false}',
+            encoding="utf-8",
+        )
+        loaded = load_preferences(path)
+        assert loaded.search_mode == "B"
+        assert loaded.language == "en"
+        assert loaded.first_run == False
+
+
+def test_load_preferences_forward_compat():
+    """Config with future version should still load known fields."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "preferences.json"
+        path.write_text(
+            '{"version":999,"search_mode":"both","language":"zh",'
+            '"first_run":false,"future_field":"should_be_ignored"}',
+            encoding="utf-8",
+        )
+        loaded = load_preferences(path)
+        assert loaded.search_mode == "both"
+        assert loaded.language == "zh"
+
+
+def test_migrate_config_versions_adds_version_to_prefs():
+    """Old prefs without version get version field added on migration."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "preferences.json"
+        path.write_text(
+            '{"search_mode":"B","language":"en","first_run":false}',
+            encoding="utf-8",
+        )
+        # Setup: override PREFERENCES_PATH and CONFIG_VERSION
+        import claude_run.config as cfg
+        orig = cfg.PREFERENCES_PATH
+        try:
+            cfg.PREFERENCES_PATH = path
+            _migrate_config_versions()
+            data = json.loads(path.read_text(encoding="utf-8"))
+            assert data["version"] == CONFIG_VERSION
+        finally:
+            cfg.PREFERENCES_PATH = orig
+
+
+def test_load_history_forward_compat():
+    """History with slightly higher version should still load."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "history.json"
+        future_ver = CONFIG_VERSION + 1
+        path.write_text(
+            json.dumps({
+                "version": future_ver,
+                "entries": [{
+                    "id": 1, "preview": "test",
+                    "selected": [{"flag": "--bare", "type": "multi", "value": True}],
+                    "saved_at": "2026-05-17T00:00:00Z",
+                }],
+                "next_id": 2,
+            }),
+            encoding="utf-8",
+        )
+        entries = load_history(path)
+        assert len(entries) == 1
+        assert entries[0]["preview"] == "test"
+
+
+def test_load_presets_forward_compat():
+    """Presets with slightly higher version should still load."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "presets.json"
+        future_ver = CONFIG_VERSION + 1
+        path.write_text(
+            json.dumps({
+                "version": future_ver,
+                "presets": {
+                    "test": {
+                        "created_at": "2026-05-17T00:00:00Z",
+                        "updated_at": "2026-05-17T00:00:00Z",
+                        "selected": [{"flag": "--bare", "type": "multi", "value": True}],
+                    }
+                },
+            }),
+            encoding="utf-8",
+        )
+        presets = load_presets(path)
+        assert "test" in presets
+        assert presets["test"]["selected"][0]["flag"] == "--bare"
+
+
+def test_load_history_way_too_new_returns_empty():
+    """History version too far ahead → empty (unsafe to load)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "history.json"
+        path.write_text(
+            json.dumps({"version": 999, "entries": [], "next_id": 1}),
+            encoding="utf-8",
+        )
+        entries = load_history(path)
+        assert entries == []

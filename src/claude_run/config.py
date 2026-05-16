@@ -13,6 +13,7 @@ PREFERENCES_PATH = CONFIG_DIR / "preferences.json"
 LAST_CONFIG_PATH = CONFIG_DIR / "last_config.json"
 HISTORY_PATH = CONFIG_DIR / "history.json"
 HISTORY_MAX = 9
+CONFIG_VERSION = 1  # current schema version for all config files
 
 
 def _migrate_old_config() -> None:
@@ -69,8 +70,10 @@ def save_preferences(prefs: Preferences, path: Path | None = None) -> None:
     path = path or PREFERENCES_PATH
     try:
         ensure_config_dir()
+        data = prefs.to_dict()
+        data["version"] = CONFIG_VERSION
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(prefs.to_dict(), f, indent=2, ensure_ascii=False)
+            json.dump(data, f, indent=2, ensure_ascii=False)
     except PermissionError as e:
         raise ConfigError(f"无法写入配置文件 {path}: 权限不足") from e
     except OSError as e:
@@ -78,7 +81,11 @@ def save_preferences(prefs: Preferences, path: Path | None = None) -> None:
 
 
 def load_preferences(path: Path | None = None) -> Preferences:
-    """加载用户偏好，损坏或不存在时返回默认值。"""
+    """加载用户偏好，损坏或不存在时返回默认值。
+
+    Forward compatible: if file version > CONFIG_VERSION, new fields are
+    silently ignored and the known subset is loaded.
+    """
     path = path or PREFERENCES_PATH
     if not path.exists():
         return Preferences()
@@ -86,6 +93,12 @@ def load_preferences(path: Path | None = None) -> Preferences:
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
+        file_version = data.get("version", 0)
+        if file_version > CONFIG_VERSION:
+            log.info(
+                f"配置文件 {path} 版本 {file_version} 高于当前支持版本 "
+                f"{CONFIG_VERSION}，尝试兼容加载"
+            )
         return Preferences.from_dict(data)
     except json.JSONDecodeError as e:
         log.warning(f"配置文件 {path} JSON 损坏: {e}，使用默认值")
@@ -142,8 +155,9 @@ def load_last_config(path: Path | None = None) -> dict | None:
             data = json.load(f)
         if not isinstance(data, dict):
             return None
-        if data.get("version") != 1:
-            return None
+        file_version = data.get("version", 0)
+        if file_version < 1 or file_version > CONFIG_VERSION + 1:
+            return None  # too old or too new to safely load
         if not isinstance(data.get("selected"), list):
             return None
         return data
@@ -169,7 +183,10 @@ def load_history(path: Path | None = None) -> list[dict]:
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        if not isinstance(data, dict) or data.get("version") != 1:
+        if not isinstance(data, dict):
+            return []
+        file_version = data.get("version", 0)
+        if file_version < 1 or file_version > CONFIG_VERSION + 1:
             return []
         entries = data.get("entries")
         if not isinstance(entries, list):
@@ -267,7 +284,10 @@ def load_presets(path: Path | None = None) -> dict[str, dict]:
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        if not isinstance(data, dict) or data.get("version") != 1:
+        if not isinstance(data, dict):
+            return {}
+        file_version = data.get("version", 0)
+        if file_version < 1 or file_version > CONFIG_VERSION + 1:
             return {}
         presets = data.get("presets")
         if not isinstance(presets, dict):
@@ -336,5 +356,66 @@ def _parse_keybindings(kb: dict) -> dict[str, list[str]]:
     return result
 
 
+def _migrate_config_versions() -> None:
+    """Migrate all config files to current CONFIG_VERSION.
+
+    Each config file carries its own "version" field. When the app bumps
+    CONFIG_VERSION, migration functions here bring old files forward.
+
+    Migration functions are keyed by (file_type, from_version) and return
+    the migrated data dict (or None if no migration needed).
+    """
+    # Register migrations here as version increases.
+    # Example for future v1 → v2:
+    #   _MIGRATIONS[("preferences", 1)] = _migrate_prefs_v1_to_v2
+    _MIGRATIONS: dict[tuple[str, int], callable] = {}
+
+    configs = [
+        ("preferences", PREFERENCES_PATH),
+        ("history", HISTORY_PATH),
+        ("presets", PRESETS_PATH),
+    ]
+
+    for cfg_type, cfg_path in configs:
+        if not cfg_path.exists():
+            continue
+        try:
+            with open(cfg_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, PermissionError, OSError):
+            log.warning(f"无法读取 {cfg_path} 进行版本迁移，跳过")
+            continue
+
+        file_version = data.get("version", 0)
+        if file_version >= CONFIG_VERSION:
+            continue  # already current (or ahead — forward compatible)
+
+        migrated = data
+        changed = False
+        for v in range(file_version, CONFIG_VERSION):
+            migrator = _MIGRATIONS.get((cfg_type, v))
+            if migrator:
+                try:
+                    migrated = migrator(migrated)
+                    changed = True
+                except Exception as e:
+                    log.warning(f"迁移 {cfg_type} v{v} → v{v + 1} 失败: {e}，保留原文件")
+                    migrated = None
+                    break
+            # No migrator: version bump is a no-op for data, but we still
+            # write the updated version field below.
+
+        if migrated is not None:
+            migrated["version"] = CONFIG_VERSION
+            try:
+                ensure_config_dir()
+                with open(cfg_path, "w", encoding="utf-8") as f:
+                    json.dump(migrated, f, indent=2, ensure_ascii=False)
+                log.info(f"已迁移 {cfg_type} 配置到版本 {CONFIG_VERSION}")
+            except (PermissionError, OSError) as e:
+                log.warning(f"无法写入迁移后的 {cfg_type} 配置: {e}")
+
+
 # 模块加载时自动迁移旧配置
 _migrate_old_config()
+_migrate_config_versions()

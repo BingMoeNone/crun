@@ -64,6 +64,54 @@ def print_logo() -> None:
     print()
 
 
+def _validate_upgrade_configs() -> None:
+    """Validate existing configs after upgrade, report stale entries.
+
+    Runs at startup to detect and clean stale history/presets entries
+    that reference flags no longer available (e.g. after version bump).
+    """
+    from claude_run.config import (
+        load_history, load_presets, save_history_entry, save_preset,
+        HISTORY_PATH, PRESETS_PATH,
+    )
+    from claude_run.flags import load_flags as _load_flags
+
+    try:
+        valid_flags = {f.flag for f in _load_flags()}
+    except Exception:
+        return  # can't validate without flags
+
+    # Validate history
+    history = load_history()
+    if history:
+        stale_count = 0
+        for entry in history:
+            for item in entry.get("selected", []):
+                if item.get("flag") and item["flag"] not in valid_flags:
+                    stale_count += 1
+                    break
+        if stale_count > 0:
+            log.info(
+                "History: %d/%d entries reference stale flags (auto-cleaned on use)",
+                stale_count, len(history),
+            )
+
+    # Validate presets
+    presets = load_presets()
+    if presets:
+        stale_presets = []
+        for name, pdata in presets.items():
+            for item in pdata.get("selected", []):
+                if item.get("flag") and item["flag"] not in valid_flags:
+                    stale_presets.append(name)
+                    break
+        if stale_presets:
+            log.info(
+                "Presets: %d/%d presets reference stale flags: %s",
+                len(stale_presets), len(presets), ", ".join(stale_presets),
+            )
+
+
 def main() -> int:
     """
     主入口，返回退出码。
@@ -85,6 +133,8 @@ def main() -> int:
 
     setup_logging()
     print_logo()
+
+    _validate_upgrade_configs()
 
     try:
         if is_first_run():
