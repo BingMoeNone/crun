@@ -44,17 +44,17 @@ def validate_argv(argv: list[str]) -> tuple[bool, str]:
 
     exe = argv[0]
 
-    # 检查 claude 命令是否存在
-    if exe == "claude":
-        # 检查 PATH 中是否有 claude
-        from shutil import which
-        if which("claude") is None:
-            return False, "claude 命令未安装或不在 PATH 中"
-    else:
-        # 非 claude 命令，检查是否存在
-        from shutil import which
-        if which(exe) is None:
-            return False, f"命令 '{exe}' 未安装或不在 PATH 中"
+    # Check command existence. On Windows, shutil.which may miss .cmd/.ps1
+    # wrappers (e.g. Claude Code installed via npm). Try common extensions first.
+    from shutil import which
+    resolved = which(exe)
+    if resolved is None and platform.system() == "Windows":
+        for ext in os.environ.get("PATHEXT", ".EXE;.CMD;.BAT").split(";"):
+            resolved = which(exe + ext)
+            if resolved:
+                break
+    if resolved is None:
+        return False, f"命令 '{exe}' 未安装或不在 PATH 中"
 
     return True, ""
 
@@ -74,9 +74,18 @@ def execute_claude(argv: list[str]) -> None:
     exe = argv[0]
 
     if platform.system() == "Windows":
-        # os.execvp on Windows spawn+exits rather than truly replacing
-        # the process. Use subprocess.run to keep stdin/stdout connected
-        # and forward the exit code correctly.
+        # Resolve the executable path first: Windows CreateProcess only
+        # appends .exe, but Claude Code is often claude.cmd (npm install).
+        # shutil.which handles PATHEXT correctly including .cmd/.bat.
+        from shutil import which
+        resolved = which(exe)
+        if resolved is None:
+            for ext in os.environ.get("PATHEXT", ".EXE;.CMD;.BAT").split(";"):
+                resolved = which(exe + ext)
+                if resolved:
+                    break
+        if resolved:
+            argv[0] = resolved
         try:
             result = subprocess.run(argv)
             os._exit(result.returncode)
