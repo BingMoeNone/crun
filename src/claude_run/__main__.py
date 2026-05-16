@@ -1,5 +1,6 @@
 """CLI 入口点。"""
 import os
+import platform
 import sys
 import logging
 from importlib.metadata import version, PackageNotFoundError
@@ -61,6 +62,26 @@ def print_logo() -> None:
     print(_LOGO)
     print(f"  v{__version__}")
     print("  by.BingMoe")
+    print()
+
+
+def _check_windows_terminal() -> None:
+    """On Windows, detect conhost and guide user to Windows Terminal."""
+    if platform.system() != "Windows":
+        return
+    if os.environ.get("WT_SESSION") or os.environ.get("TERM_PROGRAM"):
+        return
+    print("=" * 60)
+    print("  NOTICE: Better experience with Windows Terminal")
+    print()
+    print("  This tool uses Unicode symbols and color styles that")
+    print("  may not display correctly in the classic console host.")
+    print()
+    print("  Recommended: Install Windows Terminal from Microsoft Store")
+    print("  https://aka.ms/terminal")
+    print()
+    print("  Then run: wt crun")
+    print("=" * 60)
     print()
 
 
@@ -133,6 +154,8 @@ def main() -> int:
 
     setup_logging()
     print_logo()
+
+    _check_windows_terminal()
 
     _validate_upgrade_configs()
 

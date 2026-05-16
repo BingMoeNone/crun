@@ -73,3 +73,37 @@ def test_validate_upgrade_configs_no_configs():
     """Validation with no config files should not crash."""
     from claude_run.__main__ import _validate_upgrade_configs
     _validate_upgrade_configs()  # just verifies no crash on empty state
+
+
+def test_check_windows_terminal_not_windows(monkeypatch, capsys):
+    """No output on non-Windows platforms."""
+    import platform as pt
+    monkeypatch.setattr(pt, "system", lambda: "Linux")
+    from claude_run.__main__ import _check_windows_terminal
+    _check_windows_terminal()
+    captured = capsys.readouterr()
+    assert captured.out == ""
+
+
+def test_check_windows_terminal_in_wt(monkeypatch, capsys):
+    """No output when running inside Windows Terminal."""
+    import platform as pt
+    monkeypatch.setattr(pt, "system", lambda: "Windows")
+    monkeypatch.setenv("WT_SESSION", "abc123")
+    from claude_run.__main__ import _check_windows_terminal
+    _check_windows_terminal()
+    captured = capsys.readouterr()
+    assert captured.out == ""
+
+
+def test_check_windows_terminal_in_conhost(monkeypatch, capsys):
+    """Prints notice when not in Windows Terminal."""
+    import platform as pt
+    monkeypatch.setattr(pt, "system", lambda: "Windows")
+    monkeypatch.delenv("WT_SESSION", raising=False)
+    monkeypatch.delenv("TERM_PROGRAM", raising=False)
+    from claude_run.__main__ import _check_windows_terminal
+    _check_windows_terminal()
+    captured = capsys.readouterr()
+    assert "Windows Terminal" in captured.out
+    assert "aka.ms/terminal" in captured.out
