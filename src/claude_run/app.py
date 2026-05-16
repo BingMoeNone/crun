@@ -16,7 +16,7 @@ from prompt_toolkit.layout.containers import Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.styles import Style as PTStyle
 
-from claude_run.flags import Flag, load_flags, FlagsLoadError, _auto_tip
+from claude_run.flags import Flag, load_flags, FlagsLoadError, auto_tip
 from claude_run.search import search_flags, highlight_line
 from claude_run.runner import build_argv, validate_argv, SelectedFlag
 from claude_run.config import load_last_config, save_last_config, ConfigError
@@ -234,7 +234,7 @@ def _run_selector(
             idx = ctx["cursor"]
             if 0 <= idx < len(ctx["filtered"]):
                 f = ctx["filtered"][idx]
-                tip_text = f.tip_str(lang) or _auto_tip(f, lang)
+                tip_text = f.tip_str(lang) or auto_tip(f, lang)
                 if tip_text:
                     lines.append(("class:tip", f"  {tip_text[:80]}\n"))
 

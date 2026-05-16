@@ -18,6 +18,12 @@ def _default_flags_path() -> Path:
 DEFAULT_FLAGS_PATH = _default_flags_path()
 CUSTOM_FLAGS_PATH = Path.home() / ".config" / "crun" / "flags_custom.json"
 
+_AUTO_TIP_TYPE_MAP = {
+    "multi":  ("开关",    "Toggle"),
+    "single": ("单选",    "Choice"),
+    "value":  ("文本输入", "Input"),
+}
+
 
 class FlagsLoadError(Exception):
     """参数加载错误，可被上层捕获并友好显示。"""
@@ -207,15 +213,14 @@ def load_flags() -> list[Flag]:
     return list(default_map.values())
 
 
-def _auto_tip(f: Flag, lang: str) -> str:
+def auto_tip(f: Flag, lang: str) -> str:
     """根据 Flag 元数据自动生成提示文本。"""
+    zh_label, en_label = _AUTO_TIP_TYPE_MAP.get(f.type, (f.type, f.type))
     parts = []
     if lang == "zh":
-        type_map = {"multi": "开关", "single": "单选", "value": "文本输入"}
-        parts.append(f"类型: {type_map.get(f.type, f.type)}")
+        parts.append(f"类型: {zh_label}")
     else:
-        type_map = {"multi": "Toggle", "single": "Choice", "value": "Input"}
-        parts.append(f"Type: {type_map.get(f.type, f.type)}")
+        parts.append(f"Type: {en_label}")
 
     if f.choices:
         values = ", ".join(c.value for c in f.choices[:5])

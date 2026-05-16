@@ -129,15 +129,15 @@ def test_flag_conflicts_symmetric():
                     f"{f.flag} 声明与 {target} 互斥，但 {target} 未反向声明"
 
 
-# ── _auto_tip tests ──────────────────────────────────────────────────────────
+# ── auto_tip tests ──────────────────────────────────────────────────────────
 
-from claude_run.flags import _auto_tip, Flag, Choice, RequiredArg
+from claude_run.flags import auto_tip, Flag, Choice, RequiredArg
 
 
 def test_auto_tip_basic():
     f = Flag(flag="--test", description={"zh": "测试", "en": "Test"},
              required_args=[], type="multi", group="test")
-    tip = _auto_tip(f, "zh")
+    tip = auto_tip(f, "zh")
     assert "开关" in tip
 
 
@@ -145,7 +145,7 @@ def test_auto_tip_with_choices():
     f = Flag(flag="--test", description={"zh": "测试", "en": "Test"},
              required_args=[], type="single", group="test",
              choices=[Choice("a", {"zh": "选项A", "en": "A"}), Choice("b", {"zh": "选项B", "en": "B"})])
-    tip = _auto_tip(f, "zh")
+    tip = auto_tip(f, "zh")
     assert "单选" in tip
     assert "a, b" in tip
 
@@ -154,7 +154,7 @@ def test_auto_tip_with_conflicts():
     f = Flag(flag="--test", description={"zh": "测试", "en": "Test"},
              required_args=[], type="multi", group="test",
              conflicts_with=["--other"])
-    tip = _auto_tip(f, "zh")
+    tip = auto_tip(f, "zh")
     assert "互斥" in tip
     assert "--other" in tip
 
@@ -163,7 +163,7 @@ def test_auto_tip_english():
     f = Flag(flag="--test", description={"zh": "测试", "en": "Test"},
              required_args=[RequiredArg("arg", {"zh": "参数", "en": "Arg"}, {"zh": "例子", "en": "example"})],
              type="value", group="test")
-    tip = _auto_tip(f, "en")
+    tip = auto_tip(f, "en")
     assert "Type:" in tip
     assert "Input" in tip
     assert "Arg:" in tip
