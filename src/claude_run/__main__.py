@@ -4,6 +4,8 @@ import sys
 import logging
 from importlib.metadata import version, PackageNotFoundError
 
+import questionary
+
 from claude_run.config import load_preferences, is_first_run, Preferences, ConfigError
 from claude_run.wizard import run_wizard
 from claude_run.app import run_app
@@ -68,6 +70,26 @@ def main() -> int:
             prefs = run_wizard(Preferences())
         else:
             prefs = load_preferences()
+
+        # Check custom keybinding conflicts
+        if prefs.keybindings:
+            from claude_run.config import _validate_keybindings
+            warnings = _validate_keybindings(prefs.keybindings)
+            if warnings:
+                print("⚠ Detected custom keybinding conflicts:")
+                for w in warnings:
+                    print(f"  {w}")
+                print()
+                confirm = questionary.confirm(
+                    "Continue with custom keybindings? (Y/n):",
+                    default=True,
+                ).ask()
+                if not confirm:
+                    print("Using default keybindings.")
+                    prefs.keybindings = None
+                else:
+                    print("Custom keybindings applied.")
+                print()
 
         argv = run_app(prefs)
 

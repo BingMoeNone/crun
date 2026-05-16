@@ -254,3 +254,35 @@ def test_load_presets_empty():
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir) / "nonexistent.json"
         assert load_presets(path) == {}
+
+
+# ── Keybindings tests ───────────────────────────────────────────────────────────
+
+from claude_run.config import _validate_keybindings, _parse_keybindings
+
+
+def test_parse_keybindings():
+    kb = {"up": "k, up", "down": "j, down", "toggle": "space"}
+    result = _parse_keybindings(kb)
+    assert result["up"] == ["k", "up"]
+    assert result["down"] == ["j", "down"]
+    assert result["toggle"] == ["space"]
+
+
+def test_keybindings_validation_no_conflict():
+    kb = {"up": "k, up", "down": "j, down", "toggle": "space"}
+    warnings = _validate_keybindings(kb)
+    assert len(warnings) == 0
+
+
+def test_keybindings_validation_conflict():
+    kb = {"up": "k", "down": "k, j"}
+    warnings = _validate_keybindings(kb)
+    assert len(warnings) >= 1
+    assert "k" in warnings[0]
+
+
+def test_keybindings_validation_strips_whitespace():
+    kb = {"up": " k , up ", "down": " j , down "}
+    warnings = _validate_keybindings(kb)
+    assert len(warnings) == 0

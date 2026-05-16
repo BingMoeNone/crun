@@ -41,6 +41,7 @@ class Preferences:
     language: str = "zh"        # "zh" / "en"
     first_run: bool = True
     history_mode: str | None = None  # "A" / "B" / None(auto)
+    keybindings: dict[str, str] | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -48,7 +49,7 @@ class Preferences:
     @classmethod
     def from_dict(cls, d: dict) -> "Preferences":
         # 只取有效字段，忽略多余字段
-        valid_keys = {"search_mode", "language", "first_run", "history_mode"}
+        valid_keys = {"search_mode", "language", "first_run", "history_mode", "keybindings"}
         filtered = {k: v for k, v in d.items() if k in valid_keys}
         return cls(**filtered)
 
@@ -309,6 +310,30 @@ def _write_presets(presets: dict, path: Path) -> None:
             json.dump(data, f, indent=2, ensure_ascii=False)
     except (PermissionError, OSError) as e:
         raise ConfigError(f"Cannot write presets file {path}: {e}") from e
+
+
+def _validate_keybindings(kb: dict) -> list[str]:
+    """Detect keybinding conflicts, return list of warning messages."""
+    warnings = []
+    reverse: dict[str, list[str]] = {}
+    for action, key_string in kb.items():
+        keys = [k.strip() for k in key_string.split(",") if k.strip()]
+        for k in keys:
+            reverse.setdefault(k, []).append(action)
+    for key, actions in reverse.items():
+        if len(actions) > 1:
+            warnings.append(
+                f"Key conflict: '{key}' is bound to {', '.join(actions)}"
+            )
+    return warnings
+
+
+def _parse_keybindings(kb: dict) -> dict[str, list[str]]:
+    """Parse user keybinding config into {action: [key, ...]}."""
+    result = {}
+    for action, key_string in kb.items():
+        result[action] = [k.strip() for k in key_string.split(",") if k.strip()]
+    return result
 
 
 # 模块加载时自动迁移旧配置
