@@ -11,13 +11,12 @@ from claude_run.runner import execute_claude, ExecuteError
 log = logging.getLogger(__name__)
 
 _LOGO = r"""
-   __  _       ____  __ __  ___      ___         ____   __ __  ____
-  /  ]| T     /    T|  T  T|   \    /  _]       |    \ |  T  T|    \
- /  / | |    Y  o  ||  |  ||    \  /  [_  _____ |  D  )|  |  ||  _  Y
-/  /  | l___ |     ||  |  ||  D  YY    _]|     ||    / |  |  ||  |  |
-/   \_ |     T|  _  ||  :  ||     ||   [_ l_____j|    \ |  :  ||  |  |
-\     ||     ||  |  |l     ||     ||     T       |  .  Yl     ||  |  |
- \____jl_____jl__j__j \__,_jl_____jl_____j       l__j\_j \__,_jl__j__j
+   ____  ____  _  _  ____
+  / ___)|  _ \| || ||  _ \
+ | |    | |_| | || || |_| |
+ | |    |  _ (| || ||  _ <
+ | |___ | |_| | \__/ | |_| |
+  \____)|____/  \__/ |____/
 """.strip("\n")
 
 
@@ -36,7 +35,8 @@ def setup_logging() -> None:
 
 def print_logo() -> None:
     print(_LOGO)
-    print("by.BingMoe\n")
+    print("  by.BingMoe")
+    print()
 
 
 def main() -> int:

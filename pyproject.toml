@@ -1,5 +1,5 @@
 [project]
-name = "claude-run"
+name = "crun"
 version = "0.1.0"
 description = "A Linux-native CLI tool with TUI for selecting Claude Code startup flags"
 readme = "README.md"
@@ -9,7 +9,10 @@ dependencies = [
 ]
 
 [project.scripts]
-claude-run = "claude_run.__main__:main"
+crun = "claude_run.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/claude_run"]
 
 [build-system]
 requires = ["hatchling"]
