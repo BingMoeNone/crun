@@ -17,7 +17,7 @@ from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.styles import Style as PTStyle
 
 from claude_run.flags import Flag, load_flags, FlagsLoadError
-from claude_run.search import search_flags
+from claude_run.search import search_flags, highlight_line
 from claude_run.runner import build_argv, validate_argv, SelectedFlag
 from claude_run.config import load_last_config, save_last_config, ConfigError
 
@@ -48,6 +48,7 @@ _PT_STYLE = PTStyle.from_dict({
     "item-val":      "fg:ansicyan",
     "status":        "fg:ansibrightblack italic",
     "group-label":   "fg:ansibrightblack italic",
+    "search-match":  "fg:ansiyellow bold",
 })
 
 # ── 分组标签 ──────────────────────────────────────────────────────────────────
@@ -205,7 +206,7 @@ def _run_selector(
             else:
                 suffix = ""
 
-            line = f" {mark} {f.flag}  {f.label(lang)}{suffix}\n"
+            base_line = f" {mark} {f.flag}  {f.label(lang)}{suffix}\n"
 
             if is_cur:
                 style = "class:item-cur-chk" if is_chk else "class:item-cur"
@@ -214,7 +215,15 @@ def _run_selector(
             else:
                 style = "class:item"
 
-            lines.append((style, line))
+            # 搜索模式下高亮匹配字符
+            if ctx["in_search"] and ctx["search"]:
+                fragments = highlight_line(
+                    base_line, ctx["search"],
+                    base_style=style, match_style="class:search-match"
+                )
+                lines.extend(fragments)
+            else:
+                lines.append((style, base_line))
 
         if vend < len(filtered):
             lines.append(("class:scroll", "  ↓\n"))

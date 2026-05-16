@@ -94,3 +94,42 @@ def search_flags(flags: Sequence, query: str, lang: str = "zh") -> list:
 
     results.sort(key=lambda x: -x[0])
     return [f for _, f in results]
+
+
+def highlight_line(
+    line: str,
+    query: str,
+    base_style: str,
+    match_style: str,
+) -> list[tuple[str, str]]:
+    """
+    将 line 拆分为带样式的片段列表。
+    在 line 中用子序列匹配方式标记 query 的每个字符。
+
+    返回: [(style, text), ...]，相邻同 style 片段已合并
+    """
+    if not query:
+        return [(base_style, line)]
+
+    q = query.lower()
+    qi = 0
+
+    # 标记每个字符是否匹配
+    chars: list[tuple[str, bool]] = []
+    for ch in line:
+        matched = False
+        if qi < len(q) and ch.lower() == q[qi]:
+            matched = True
+            qi += 1
+        chars.append((ch, matched))
+
+    # 合并相邻同 style 字符
+    fragments: list[tuple[str, str]] = []
+    for ch, matched in chars:
+        style = match_style if matched else base_style
+        if fragments and fragments[-1][0] == style:
+            fragments[-1] = (style, fragments[-1][1] + ch)
+        else:
+            fragments.append((style, ch))
+
+    return fragments

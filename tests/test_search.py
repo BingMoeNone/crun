@@ -160,3 +160,33 @@ def test_search_flags_by_pinyin_partial():
     results = search_flags(FLAGS, "mox", lang="zh")
     assert any(r.flag == "--model" for r in results), \
         "部分拼音 'mox' 应匹配到 --model"
+
+
+from claude_run.search import highlight_line
+
+
+def test_highlight_line_exact_match():
+    fragments = highlight_line("--model", "model", "class:item", "class:match")
+    # 应有至少 2 个片段: "--" 普通 + "model" 高亮
+    assert len(fragments) >= 2
+    assert fragments[-1][0] == "class:match"
+    assert "model" in fragments[-1][1]
+
+
+def test_highlight_line_no_match():
+    fragments = highlight_line("hello", "xyz", "class:item", "class:match")
+    assert fragments == [("class:item", "hello")]
+
+
+def test_highlight_line_empty_query():
+    fragments = highlight_line("hello", "", "class:item", "class:match")
+    assert fragments == [("class:item", "hello")]
+
+
+def test_highlight_line_chinese():
+    fragments = highlight_line("当前会话使用的模型", "模型", "class:item", "class:match")
+    assert len(fragments) >= 2
+    # "模型" 两个字应该被高亮
+    match_texts = [t for s, t in fragments if s == "class:match"]
+    assert any("模" in t for t in match_texts)
+    assert any("型" in t for t in match_texts)
