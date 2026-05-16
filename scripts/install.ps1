@@ -79,7 +79,8 @@ if ($env:CRUN_INSTALL_DIR) {
 # ── Check existing installation ────────────────────────────────────────────
 [string]$existingVersion = ""
 $isUpgrade = $false
-$existingPath = (Get-Command crun.exe -ErrorAction SilentlyContinue).Source
+$cmd = Get-Command crun.exe -ErrorAction SilentlyContinue
+$existingPath = if ($cmd) { $cmd.Source } else { $null }
 if ($existingPath) {
   try {
     $existingVersion = (& $existingPath --version 2>$null) -join ''
