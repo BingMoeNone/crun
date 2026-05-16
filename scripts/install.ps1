@@ -4,13 +4,13 @@
 
 .DESCRIPTION
   One-command install:
-    irm https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.ps1 | iex
+    irm https://raw.githubusercontent.com/BingMoeNone/crun/main/scripts/install.ps1 | iex
 
   Or download and run manually:
     .\install.ps1
 
 .ENVIRONMENT VARIABLES
-  CRUN_REPO         - GitHub repo (default: BingMoeNone/claude-run)
+  CRUN_REPO         - GitHub repo (default: BingMoeNone/crun)
   CRUN_VERSION      - version tag or "latest" (default: latest)
   CRUN_INSTALL_DIR  - install directory (default: $env:LOCALAPPDATA\Programs\crun)
   DEBUG             - $true for verbose output
@@ -25,7 +25,7 @@ if ($Arg1 -eq '-h' -or $Arg1 -eq '--help') {
   Write-Host @"
 Usage: irm <install-url> | iex
 Environment variables:
-  CRUN_REPO          GitHub repo (default: BingMoeNone/claude-run)
+  CRUN_REPO          GitHub repo (default: BingMoeNone/crun)
   CRUN_VERSION       version tag or 'latest' (default: latest)
   CRUN_INSTALL_DIR   install path (default: `$env:LOCALAPPDATA\Programs\crun)
   `$env:DEBUG=`$true  enable verbose output
@@ -52,7 +52,7 @@ $DebugMode = [bool]($env:DEBUG -eq "1" -or $env:DEBUG -eq "true")
 function info($msg)  { Write-Host "  ${CYAN}->${NC} $msg" }
 function ok($msg)    { Write-Host "  ${GREEN}+${NC} $msg" }
 function warn($msg)  { Write-Host "  ${YELLOW}!${NC} $msg" }
-function err($msg)   { Write-Host "  ERROR: $msg" -ForegroundColor Red; throw $msg }
+function err($msg)   { Write-Host "  ERROR: $msg" -ForegroundColor Red; throw "Installation failed" }
 function debug($msg) { if ($DebugMode) { Write-Host "  [DEBUG] $msg" -ForegroundColor DarkGray } }
 
 # ── Platform check ─────────────────────────────────────────────────────────
@@ -132,15 +132,21 @@ Write-Host "  URL: $BinaryUrl"
 try {
   Invoke-WebRequest -Uri $BinaryUrl -OutFile $dlPath -UseBasicParsing
 } catch {
-  Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
-  err @"
+  $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
+  if ($statusCode -eq 404) {
+    err @"
+No Windows binary for $Version
+  URL: $BinaryUrl
+  This version may not have a Windows build yet.
+  Visit https://github.com/$Repo/releases to check available assets.
+"@
+  } else {
+    err @"
 Download failed ($($_.Exception.Message))
-Possible causes:
-  - Network connectivity issue
-  - GitHub Release not found (version=$Version)
-  - This version was not built for $arch
+  URL: $BinaryUrl
   Visit https://github.com/$Repo/releases to confirm release status
 "@
+  }
 }
 ok "Download complete ($([math]::Round((Get-Item $dlPath).Length / 1MB, 1)) MB)"
 

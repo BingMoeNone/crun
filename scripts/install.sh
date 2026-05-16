@@ -3,10 +3,10 @@ set -euo pipefail
 
 # ── crun installer ─────────────────────────────────────────────────────────────
 # One-command install:
-#   curl -fsSL https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/BingMoeNone/crun/main/scripts/install.sh | bash
 #
 # Environment variables:
-#   CRUN_REPO        - GitHub repo (default: BingMoeNone/claude-run)
+#   CRUN_REPO        - GitHub repo (default: BingMoeNone/crun)
 #   CRUN_VERSION     - version tag or "latest" (default: latest)
 #   CRUN_INSTALL_DIR - install directory (default: /usr/local/bin or ~/.local/bin)
 # ───────────────────────────────────────────────────────────────────────────────
@@ -29,7 +29,7 @@ case "${1:-}" in
     echo "Usage: curl -fsSL <install-url> | bash"
     echo ""
     echo "Environment variables:"
-    echo "  CRUN_REPO         GitHub repo (default: BingMoeNone/claude-run)"
+    echo "  CRUN_REPO         GitHub repo (default: BingMoeNone/crun)"
     echo "  CRUN_VERSION      version tag or 'latest' (default: latest)"
     echo "  CRUN_INSTALL_DIR  install path (default: /usr/local/bin or ~/.local/bin)"
     echo "  DEBUG=1           enable verbose output"
