@@ -1,5 +1,7 @@
 """命令构建与执行。"""
 import os
+import platform
+import subprocess
 import logging
 from typing import Sequence
 
@@ -59,7 +61,7 @@ def validate_argv(argv: list[str]) -> tuple[bool, str]:
 
 def execute_claude(argv: list[str]) -> None:
     """
-    执行 claude 命令，使用 execvp 替换当前进程。
+    执行 claude 命令，替换当前进程。
 
     注意：此函数不返回（成功时进程被替换），
     失败时抛出 ExecuteError。
@@ -71,11 +73,25 @@ def execute_claude(argv: list[str]) -> None:
 
     exe = argv[0]
 
-    try:
-        os.execvp(exe, argv)
-    except FileNotFoundError as e:
-        raise ExecuteError(f"命令 '{exe}' 不存在: {e}")
-    except PermissionError as e:
-        raise ExecuteError(f"无法执行 '{exe}': 权限不足")
-    except OSError as e:
-        raise ExecuteError(f"执行 '{exe}' 失败: {e}")
+    if platform.system() == "Windows":
+        # os.execvp on Windows spawn+exits rather than truly replacing
+        # the process. Use subprocess.run to keep stdin/stdout connected
+        # and forward the exit code correctly.
+        try:
+            result = subprocess.run(argv)
+            os._exit(result.returncode)
+        except FileNotFoundError:
+            raise ExecuteError(f"命令 '{exe}' 不存在")
+        except PermissionError:
+            raise ExecuteError(f"无法执行 '{exe}': 权限不足")
+        except OSError as e:
+            raise ExecuteError(f"执行 '{exe}' 失败: {e}")
+    else:
+        try:
+            os.execvp(exe, argv)
+        except FileNotFoundError as e:
+            raise ExecuteError(f"命令 '{exe}' 不存在: {e}")
+        except PermissionError as e:
+            raise ExecuteError(f"无法执行 '{exe}': 权限不足")
+        except OSError as e:
+            raise ExecuteError(f"执行 '{exe}' 失败: {e}")

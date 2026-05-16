@@ -1,0 +1,45 @@
+<h2>搜索高亮 — 两个粒度方案</h2>
+<p class="subtitle">用户输入 "model" 搜索，匹配到 --model 参数时的高亮效果</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">方案 A：行级高亮（推荐）</div>
+    <div class="mockup-body">
+      <p style="margin:0 0 8px;font-size:13px;opacity:0.7">匹配的行整体用高亮样式标记，不区分具体匹配位置</p>
+<pre style="background:var(--bg-secondary);color:var(--text-primary);padding:12px;border-radius:6px;font-size:12px;line-height:1.6;margin:0;font-family:monospace">
+搜索: model▌ (3 项)  Esc 退出搜索
+──────────────────────────────────────
+<span style="background:#5f87ff33;color:#5f87ff;font-weight:bold"> ○ --model  当前会话使用的模型 [单选]</span>
+<span style="background:#5f87ff33;color:#5f87ff;font-weight:bold"> ○ --fallback-model  默认模型过载时回退 [输入]</span>
+ ○ --teammate-mode  设置 agent 显示方式 [单选]
+  已选 0 项
+</pre>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>优点</h4><ul><li>实现简单，仅改样式类</li><li>prompt_toolkit 原生支持</li><li>不破坏原有渲染逻辑</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>不精确指示匹配位置</li></ul></div>
+      </div>
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">方案 B：字符级高亮</div>
+    <div class="mockup-body">
+      <p style="margin:0 0 8px;font-size:13px;opacity:0.7">匹配的具体字符用不同颜色标记出来</p>
+<pre style="background:var(--bg-secondary);color:var(--text-primary);padding:12px;border-radius:6px;font-size:12px;line-height:1.6;margin:0;font-family:monospace">
+搜索: model▌ (3 项)  Esc 退出搜索
+──────────────────────────────────────
+ ○ --<span style="color:#ff0;font-weight:bold">model</span>  当前会话使用的<span style="color:#ff0;font-weight:bold">模型</span> [单选]
+ ○ --fallback-<span style="color:#ff0;font-weight:bold">model</span>  默认<span style="color:#ff0;font-weight:bold">模型</span>过载时回退 [输入]
+ ○ --teammate-mode  设置 agent 显示方式 [单选]
+  已选 0 项
+</pre>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>优点</h4><ul><li>精确展示匹配位置</li><li>视觉反馈更丰富</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>需要拆分每行为多个 (style, text) 片段</li><li>改造 _render() 渲染管线</li><li>中文分词边界可能不完美</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:16px">
+  <p class="subtitle">方案 B 需要把每行拆成多段带样式的片段，复杂度明显高于 A。但视觉效果好很多。你选哪个？</p>
+</div>

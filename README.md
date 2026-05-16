@@ -187,7 +187,7 @@ uv run pytest tests/ -v
 
 ```bash
 uv sync --all-groups
-uv run pyinstaller --onefile --name crun --paths src --add-data "data/flags_default.json:data" src/claude_run/__main__.py
+uv run pyinstaller --onefile --name crun --paths src --add-data "data/flags_default.json:data" --copy-metadata crun src/claude_run/__main__.py
 ```
 
 输出文件：`dist/crun`
@@ -345,7 +345,7 @@ uv run pytest tests/ -v
 
 ```bash
 uv sync --all-groups
-uv run pyinstaller --onefile --name crun --paths src --add-data "data/flags_default.json:data" src/claude_run/__main__.py
+uv run pyinstaller --onefile --name crun --paths src --add-data "data/flags_default.json:data" --copy-metadata crun src/claude_run/__main__.py
 ```
 
 Output binary: `dist/crun`

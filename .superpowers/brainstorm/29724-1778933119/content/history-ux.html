@@ -1,0 +1,55 @@
+<h2>命令历史 — 两种交互方案</h2>
+<p class="subtitle">用户未勾选参数就点「执行」时，展示最近 9 次记录</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">方案 A：直接数字选择</div>
+    <div class="mockup-body">
+      <p style="margin:0 0 8px;font-size:13px;opacity:0.7">立即列出 9 条历史，用户按数字键选择，不输入直接回车 = 上次</p>
+<pre style="background:var(--bg-secondary);color:var(--text-primary);padding:12px;border-radius:6px;font-size:12px;line-height:1.6;margin:0">
+<span style="color:#888">最近 9 次配置：</span>
+
+<span style="color:#5fffaf">1</span>  claude --model sonnet --bare
+<span style="color:#888">      2026-05-16 14:30</span>
+
+<span style="color:#5fffaf">2</span>  claude --model opus --debug api
+<span style="color:#888">      2026-05-16 09:15</span>
+
+<span style="color:#5fffaf">3</span>  claude --permission-mode auto -p
+<span style="color:#888">      2026-05-15 18:00</span>
+
+  ...
+
+<span style="color:#5f87ff">输入数字选择 (回车默认 1=上次):</span> █
+</pre>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>优点</h4><ul><li>一步到位，最快</li><li>符合你描述的交互需求</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>9 条信息量较大</li><li>小终端可能占满屏幕</li></ul></div>
+      </div>
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">方案 B：精简预览 + 展开选择</div>
+    <div class="mockup-body">
+      <p style="margin:0 0 8px;font-size:13px;opacity:0.7">先展示上次配置摘要，选择「查看更多」再展开完整列表</p>
+<pre style="background:var(--bg-secondary);color:var(--text-primary);padding:12px;border-radius:6px;font-size:12px;line-height:1.6;margin:0">
+<span style="color:#888">当前未选择参数。</span>
+
+<span style="color:#888">上次配置 (2026-05-16 14:30):</span>
+  claude --model sonnet --bare
+
+<span style="color:#5f87ff">▶ 使用上次 (Enter)</span>
+<span style="color:#5f87ff">▸ 查看更多历史...</span>
+<span style="color:#5f87ff">✗ 重新选择</span>
+</pre>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>优点</h4><ul><li>简洁，不占屏幕</li><li>与现有流程最接近</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>多看一步</li><li>需要额外交互进入列表</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:16px">
+  <p class="subtitle">两个方案都支持你要求的行为：「直接输入数字=选第 N 条」「不输入=默认上次」。差别在于历史列表是直接展示还是需要展开。你更喜欢哪个？</p>
+</div>

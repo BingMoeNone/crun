@@ -1,0 +1,55 @@
+<h2>自定义快捷键 — 支持粒度</h2>
+<p class="subtitle">用户在 preferences.json 中覆盖默认键位</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">方案 A：预设方案选择（推荐）</div>
+    <div class="mockup-body">
+      <p style="margin:0 0 8px;font-size:13px;opacity:0.7">提供几套键位方案供用户选择，不开放自由映射</p>
+<pre style="background:var(--bg-secondary);color:var(--text-primary);padding:12px;border-radius:6px;font-size:12px;line-height:1.6;margin:0">
+// preferences.json
+{
+  "keybindings": "vim"  // "default" | "vim" | "emacs"
+}
+
+默认方案:  ↑↓/jk 移动  Space 勾选  / 搜索
+Vim 方案:  hjkl 移动  Space 勾选  / 搜索
+Emacs方案:  Ctrl+N/P 移动  Space 勾选  Ctrl+S 搜索
+</pre>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>优点</h4><ul><li>实现极简，3 套预设</li><li>不会产生冲突键位</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>灵活性有限</li></ul></div>
+      </div>
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">方案 B：自由映射</div>
+    <div class="mockup-body">
+      <p style="margin:0 0 8px;font-size:13px;opacity:0.7">每个操作都可以单独映射到任意键</p>
+<pre style="background:var(--bg-secondary);color:var(--text-primary);padding:12px;border-radius:6px;font-size:12px;line-height:1.6;margin:0">
+// preferences.json
+{
+  "keybindings": {
+    "move_up":    "up,k",
+    "move_down":  "down,j",
+    "toggle":     "space",
+    "search":     "/",
+    "confirm":    "enter",
+    "quit":       "escape",
+    "cancel":     "c-c",
+    "page_up":    "pageup",
+    "page_down":  "pagedown"
+  }
+}
+</pre>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>优点</h4><ul><li>完全灵活</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>用户可能配出冲突键位</li><li>需键位验证逻辑</li><li>prompt_toolkit 的 KeyBindings 不支持运行时重映射</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:16px">
+  <p class="subtitle"><strong>技术约束</strong>：prompt_toolkit 的 KeyBindings 在 Application 构建时注册。实现 B 需要先把所有可能用到的键注册为动态路由，再在运行时查表分发——这是可行的但会让按键处理逻辑复杂不少。A 方案则直接在启动时根据配置选择一套预设的 KeyBindings 即可。你选哪个？</p>
+</div>
