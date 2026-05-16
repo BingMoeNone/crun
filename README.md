@@ -2,7 +2,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-blue?style=flat-square&logo=windows&logoColor=white)](https://github.com/BingMoeNone/claude-run)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-blue?style=flat-square&logo=windows&logoColor=white)](https://github.com/BingMoeNone/crun)
 
 `crun` 是一个 Linux CLI 工具，通过 TUI 交互界面选择 Claude Code 的 71 个启动参数（15 个分组），然后执行 `claude <flags>`。支持拼音模糊搜索、搜索字符高亮、参数互斥、9 条命令历史（A/B 自适应方案）、参数预设、参数使用提示和自定义快捷键。
 
@@ -33,18 +33,18 @@
 支持 Linux `amd64` / `arm64`。
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/BingMoeNone/crun/main/scripts/install.sh | bash
 ```
 
 指定版本安装：
 
 ```bash
-CRUN_VERSION=v0.2.0 curl -fsSL https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.sh | bash
+CRUN_VERSION=v0.2.0 curl -fsSL https://raw.githubusercontent.com/BingMoeNone/crun/main/scripts/install.sh | bash
 ```
 
 可选环境变量：
 
-- `CRUN_REPO`：默认 `BingMoeNone/claude-run`
+- `CRUN_REPO`：默认 `BingMoeNone/crun`
 - `CRUN_VERSION`：默认 `latest`
 - `CRUN_INSTALL_DIR`：安装目录（默认优先 `/usr/local/bin`，无权限时回退 `~/.local/bin`）
 
@@ -56,19 +56,19 @@ CRUN_VERSION=v0.2.0 curl -fsSL https://raw.githubusercontent.com/BingMoeNone/cla
 
 ```powershell
 # 一键安装
-irm https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/BingMoeNone/crun/main/scripts/install.ps1 | iex
 ```
 
 指定版本安装：
 
 ```powershell
 $env:CRUN_VERSION="v0.5.0"
-irm https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/BingMoeNone/crun/main/scripts/install.ps1 | iex
 ```
 
 可选环境变量：
 
-- `CRUN_REPO`：默认 `BingMoeNone/claude-run`
+- `CRUN_REPO`：默认 `BingMoeNone/crun`
 - `CRUN_VERSION`：默认 `latest`
 - `CRUN_INSTALL_DIR`：安装目录（默认 `%LOCALAPPDATA%\Programs\crun`）
 - `$env:DEBUG=$true`：启用调试输出
@@ -78,7 +78,7 @@ irm https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/instal
 ### 源码安装
 
 ```bash
-git clone git@github.com:BingMoeNone/claude-run.git
+git clone git@github.com:BingMoeNone/crun.git
 cd claude-run
 
 uv sync
@@ -217,18 +217,18 @@ uv run pyinstaller --onefile --name crun --paths src --add-data "data/flags_defa
 Linux `amd64` / `arm64` are supported.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/BingMoeNone/crun/main/scripts/install.sh | bash
 ```
 
 Install a specific version:
 
 ```bash
-CRUN_VERSION=v0.2.0 curl -fsSL https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.sh | bash
+CRUN_VERSION=v0.2.0 curl -fsSL https://raw.githubusercontent.com/BingMoeNone/crun/main/scripts/install.sh | bash
 ```
 
 Optional environment variables:
 
-- `CRUN_REPO` (default: `BingMoeNone/claude-run`)
+- `CRUN_REPO` (default: `BingMoeNone/crun`)
 - `CRUN_VERSION` (default: `latest`)
 - `CRUN_INSTALL_DIR` (install dir; default prefers `/usr/local/bin`, falls back to `~/.local/bin`)
 
@@ -239,19 +239,19 @@ Optional environment variables:
 Windows 10+ `amd64`. [Windows Terminal](https://aka.ms/terminal) recommended.
 
 ```powershell
-irm https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/BingMoeNone/crun/main/scripts/install.ps1 | iex
 ```
 
 Specify version:
 
 ```powershell
 $env:CRUN_VERSION="v0.5.0"
-irm https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/BingMoeNone/crun/main/scripts/install.ps1 | iex
 ```
 
 Optional environment variables:
 
-- `CRUN_REPO` (default: `BingMoeNone/claude-run`)
+- `CRUN_REPO` (default: `BingMoeNone/crun`)
 - `CRUN_VERSION` (default: `latest`)
 - `CRUN_INSTALL_DIR` (default: `%LOCALAPPDATA%\Programs\crun`)
 - `$env:DEBUG=$true` for verbose output
@@ -261,7 +261,7 @@ Optional environment variables:
 ### Install from source
 
 ```bash
-git clone git@github.com:BingMoeNone/claude-run.git
+git clone git@github.com:BingMoeNone/crun.git
 cd claude-run
 
 uv sync

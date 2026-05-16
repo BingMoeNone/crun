@@ -63,7 +63,7 @@ if ($env:OS -ne "Windows_NT") {
 $arch = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { err "64-bit Windows required" }
 
 # ── Banner ─────────────────────────────────────────────────────────────────
-[string]$Repo    = if ($env:CRUN_REPO)    { $env:CRUN_REPO }    else { "BingMoeNone/claude-run" }
+[string]$Repo    = if ($env:CRUN_REPO)    { $env:CRUN_REPO }    else { "BingMoeNone/crun" }
 [string]$Version = if ($env:CRUN_VERSION) { $env:CRUN_VERSION } else { "latest" }
 
 Write-Host ""
@@ -128,7 +128,6 @@ $dlPath = Join-Path $TempDir $Asset
 
 info "Downloading $Asset ..."
 Write-Host "  URL: $BinaryUrl"
-Write-Host "  Size: ~12MB, please wait..."
 
 try {
   Invoke-WebRequest -Uri $BinaryUrl -OutFile $dlPath -UseBasicParsing

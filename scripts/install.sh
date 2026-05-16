@@ -61,7 +61,7 @@ for cmd in curl sha256sum install mktemp; do
 done
 
 # ── Banner ─────────────────────────────────────────────────────────────────────
-REPO="${CRUN_REPO:-BingMoeNone/claude-run}"
+REPO="${CRUN_REPO:-BingMoeNone/crun}"
 VERSION="${CRUN_VERSION:-latest}"
 
 echo ""
@@ -140,7 +140,6 @@ fi
 
 info "下载 ${asset} ..."
 echo "  URL: ${binary_url}"
-echo "  大小约 12MB，请耐心等待..."
 if ! curl "${CURL_ARGS[@]}" "${binary_url}" -o "${tmp_dir}/${asset}"; then
   echo ""
   err "下载失败 (exit code: $?)
