@@ -2,7 +2,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Linux-blue?style=flat-square&logo=linux&logoColor=white)](https://github.com/BingMoeNone/claude-run)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-blue?style=flat-square&logo=windows&logoColor=white)](https://github.com/BingMoeNone/claude-run)
 
 `crun` 是一个 Linux CLI 工具，通过 TUI 交互界面选择 Claude Code 的 71 个启动参数（15 个分组），然后执行 `claude <flags>`。支持拼音模糊搜索、搜索字符高亮、参数互斥、9 条命令历史（A/B 自适应方案）、参数预设、参数使用提示和自定义快捷键。
 
@@ -49,6 +49,31 @@ CRUN_VERSION=v0.2.0 curl -fsSL https://raw.githubusercontent.com/BingMoeNone/cla
 - `CRUN_INSTALL_DIR`：安装目录（默认优先 `/usr/local/bin`，无权限时回退 `~/.local/bin`）
 
 > 注意：`crun` 会调用系统中的 `claude` 命令，请先确保 Claude Code CLI 已安装并在 PATH 中。
+
+### Windows 安装
+
+支持 Windows 10+ `amd64`。推荐使用 [Windows Terminal](https://aka.ms/terminal)。
+
+```powershell
+# 一键安装
+irm https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.ps1 | iex
+```
+
+指定版本安装：
+
+```powershell
+$env:CRUN_VERSION="v0.5.0"
+irm https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.ps1 | iex
+```
+
+可选环境变量：
+
+- `CRUN_REPO`：默认 `BingMoeNone/claude-run`
+- `CRUN_VERSION`：默认 `latest`
+- `CRUN_INSTALL_DIR`：安装目录（默认 `%LOCALAPPDATA%\Programs\crun`）
+- `$env:DEBUG=$true`：启用调试输出
+
+> 注意：`crun` 会调用系统中的 `claude` 命令，请先安装 Claude Code CLI 并确保在 PATH 中。首次运行可能需执行 `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser` 允许 PowerShell 脚本。
 
 ### 源码安装
 
@@ -119,6 +144,8 @@ uv run crun
 ### 配置文件
 
 配置目录：`~/.config/crun/`
+
+> Windows 配置目录：`%LOCALAPPDATA%\crun\`（通常为 `C:\Users\<用户名>\AppData\Local\crun\`）
 
 - `preferences.json`：用户偏好（language, search_mode, history_mode, keybindings 等）
 - `flags_custom.json`：自定义参数定义（覆盖/扩展默认参数）
@@ -207,6 +234,30 @@ Optional environment variables:
 
 > Note: `crun` calls the `claude` command on your system. Make sure Claude Code CLI is installed and available in PATH.
 
+### Windows Install
+
+Windows 10+ `amd64`. [Windows Terminal](https://aka.ms/terminal) recommended.
+
+```powershell
+irm https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.ps1 | iex
+```
+
+Specify version:
+
+```powershell
+$env:CRUN_VERSION="v0.5.0"
+irm https://raw.githubusercontent.com/BingMoeNone/claude-run/main/scripts/install.ps1 | iex
+```
+
+Optional environment variables:
+
+- `CRUN_REPO` (default: `BingMoeNone/claude-run`)
+- `CRUN_VERSION` (default: `latest`)
+- `CRUN_INSTALL_DIR` (default: `%LOCALAPPDATA%\Programs\crun`)
+- `$env:DEBUG=$true` for verbose output
+
+> Note: `crun` calls the `claude` command. Make sure Claude Code CLI is installed and in PATH. You may need `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser` first.
+
 ### Install from source
 
 ```bash
@@ -274,6 +325,8 @@ Main menu provides save/load preset functionality:
 ### Configuration Files
 
 Directory: `~/.config/crun/`
+
+> Windows: `%LOCALAPPDATA%\crun\` (usually `C:\Users\<username>\AppData\Local\crun\`)
 
 - `preferences.json` — user preferences (language, search_mode, history_mode, keybindings, etc.)
 - `flags_custom.json` — custom/override flag definitions

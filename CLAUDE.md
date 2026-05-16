@@ -43,6 +43,22 @@ uv run pyinstaller --onefile --name crun --paths src --add-data "data/flags_defa
 DEBUG=1 uv run crun
 ```
 
+## Windows 开发 / Windows Development
+
+```bash
+# Windows 上直接运行 (需 Python 3.12+)
+uv pip install -e .
+uv run crun
+
+# 运行测试 (Windows runner)
+uv run pytest tests/ -v -m "not integration"
+
+# Windows 本地打包 (分隔符为 ; 非 :)
+uv sync --all-groups
+uv run pyinstaller --onefile --name crun --paths src --add-data "data/flags_default.json;data" --console src/claude_run/__main__.py
+# 输出: dist/crun.exe
+```
+
 ## 技术栈 / Tech Stack
 
 - **Python 3.12+** with **uv** for environment management
