@@ -21,6 +21,9 @@ uv run crun
 # 运行所有测试
 uv run pytest tests/ -v
 
+# 运行测试（含覆盖率）
+uv run pytest tests/ -v --cov=src/claude_run --cov-report=term-missing
+
 # 运行单个测试文件
 uv run pytest tests/test_search.py -v
 
