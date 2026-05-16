@@ -215,3 +215,42 @@ def test_history_mode_adaptive():
     # user setting takes priority
     assert history_mode_for_terminal("B", 40) == "B"
     assert history_mode_for_terminal("A", 14) == "A"
+
+
+# ── Presets API tests ──────────────────────────────────────────────────────────
+
+from claude_run.config import load_presets, save_preset, delete_preset, PRESETS_PATH
+
+
+def test_save_and_load_presets():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "presets.json"
+
+        save_preset("开发模式", [{"flag": "--bare", "type": "multi", "value": True}], path)
+        presets = load_presets(path)
+        assert "开发模式" in presets
+        assert presets["开发模式"]["selected"][0]["flag"] == "--bare"
+
+
+def test_preset_overwrite():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "presets.json"
+        save_preset("test", [{"flag": "--a", "type": "multi", "value": True}], path)
+        save_preset("test", [{"flag": "--b", "type": "multi", "value": True}], path)
+        presets = load_presets(path)
+        assert presets["test"]["selected"][0]["flag"] == "--b"
+
+
+def test_delete_preset():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "presets.json"
+        save_preset("test", [{"flag": "--bare", "type": "multi", "value": True}], path)
+        delete_preset("test", path)
+        presets = load_presets(path)
+        assert "test" not in presets
+
+
+def test_load_presets_empty():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "nonexistent.json"
+        assert load_presets(path) == {}

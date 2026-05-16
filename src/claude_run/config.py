@@ -255,5 +255,61 @@ def history_mode_for_terminal(
     return "A"
 
 
+PRESETS_PATH = CONFIG_DIR / "presets.json"
+
+
+def load_presets(path: Path | None = None) -> dict[str, dict]:
+    """Return {name: preset_data}, return {} if corrupt."""
+    path = path or PRESETS_PATH
+    if not path.exists():
+        return {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict) or data.get("version") != 1:
+            return {}
+        presets = data.get("presets")
+        if not isinstance(presets, dict):
+            return {}
+        return presets
+    except (json.JSONDecodeError, PermissionError, OSError):
+        return {}
+
+
+def save_preset(name: str, snapshot: list[dict], path: Path | None = None) -> None:
+    """Save preset, overwrite if name exists (updates updated_at)."""
+    path = path or PRESETS_PATH
+    presets = load_presets(path)
+    now = datetime.now(timezone.utc).isoformat()
+    if name in presets:
+        presets[name]["updated_at"] = now
+        presets[name]["selected"] = snapshot
+    else:
+        presets[name] = {
+            "created_at": now,
+            "updated_at": now,
+            "selected": snapshot,
+        }
+    _write_presets(presets, path)
+
+
+def delete_preset(name: str, path: Path | None = None) -> None:
+    """Delete a preset by name."""
+    path = path or PRESETS_PATH
+    presets = load_presets(path)
+    presets.pop(name, None)
+    _write_presets(presets, path)
+
+
+def _write_presets(presets: dict, path: Path) -> None:
+    data = {"version": 1, "presets": presets}
+    try:
+        ensure_config_dir()
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except (PermissionError, OSError) as e:
+        raise ConfigError(f"Cannot write presets file {path}: {e}") from e
+
+
 # 模块加载时自动迁移旧配置
 _migrate_old_config()

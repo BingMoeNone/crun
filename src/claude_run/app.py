@@ -23,6 +23,7 @@ from claude_run.config import (
     ConfigError,
     load_history, save_history_entry, _migrate_last_config_to_history,
     history_mode_for_terminal,
+    load_presets, save_preset, delete_preset,
 )
 
 
@@ -537,6 +538,8 @@ def run_app(prefs) -> list[str] | None:
                 questionary.Choice("＋ 继续选择" if lang == "zh" else "＋ More", value="more"),
                 questionary.Choice("✎ 修改已选值" if lang == "zh" else "✎ Edit", value="edit"),
                 questionary.Choice("✗ 清空重选" if lang == "zh" else "✗ Reset", value="reset"),
+                questionary.Choice("💾 保存为预设" if lang == "zh" else "💾 Save Preset", value="save_preset"),
+                questionary.Choice("📂 从预设加载" if lang == "zh" else "📂 Load Preset", value="load_preset"),
                 questionary.Choice("✗ 取消退出" if lang == "zh" else "✗ Quit", value="quit"),
             ],
             style=_Q_STYLE,
@@ -562,6 +565,124 @@ def run_app(prefs) -> list[str] | None:
                 val = _prompt_flag_value(f, lang, value_state)
                 if val is not None:
                     value_state[f.flag] = val
+            continue
+
+        if action == "save_preset":
+            if not selected_objs:
+                print("未选任何参数，无法保存。\n" if lang == "zh" else "No flags selected to save.\n")
+                continue
+
+            name = questionary.text(
+                "预设名称:" if lang == "zh" else "Preset name:",
+                validate=lambda text: True if text.strip() else ("名称不能为空" if lang == "zh" else "Name cannot be empty"),
+                style=_Q_STYLE,
+            ).ask()
+            if name is None or not name.strip():
+                continue
+            name = name.strip()
+
+            presets = load_presets()
+            if name in presets:
+                overwrite = questionary.confirm(
+                    f"预设「{name}」已存在，是否覆盖？" if lang == "zh" else f"Preset \"{name}\" already exists. Overwrite?",
+                    default=False,
+                    style=_Q_STYLE,
+                ).ask()
+                if not overwrite:
+                    continue
+
+            current_selected = _build_selected(selected_objs, value_state)
+            snapshot = _build_last_config_snapshot(current_selected, flags_by_name)["selected"]
+            try:
+                save_preset(name, snapshot)
+            except ConfigError as e:
+                print(f"⚠ 保存失败: {e}\n" if lang == "zh" else f"⚠ Save failed: {e}\n")
+                continue
+            print(f"已保存预设「{name}」。\n" if lang == "zh" else f"Preset \"{name}\" saved.\n")
+            continue
+
+        if action == "load_preset":
+            presets = load_presets()
+            if not presets:
+                print("没有已保存的预设。\n" if lang == "zh" else "No saved presets.\n")
+                continue
+
+            preset_names = sorted(presets.keys())
+            choices = [
+                questionary.Choice(f"  {n}", value=n)
+                for n in preset_names
+            ]
+            choices.append(questionary.Separator(" "))
+            choices.append(questionary.Choice(
+                "── 删除预设... ──" if lang == "zh" else "── Delete preset... ──",
+                value="__delete__",
+            ))
+
+            chosen = questionary.select(
+                "选择预设:" if lang == "zh" else "Select preset:",
+                choices=choices,
+                style=_Q_STYLE,
+            ).ask()
+            if chosen is None:
+                continue
+
+            if chosen == "__delete__":
+                del_choices = [
+                    questionary.Choice(f"  {n}", value=n)
+                    for n in preset_names
+                ]
+                to_delete = questionary.select(
+                    "选择要删除的预设:" if lang == "zh" else "Select preset to delete:",
+                    choices=del_choices,
+                    style=_Q_STYLE,
+                ).ask()
+                if to_delete is None:
+                    continue
+                confirm = questionary.confirm(
+                    f"确认删除预设「{to_delete}」？" if lang == "zh" else f"Delete preset \"{to_delete}\"?",
+                    default=False,
+                    style=_Q_STYLE,
+                ).ask()
+                if confirm:
+                    try:
+                        delete_preset(to_delete)
+                    except ConfigError as e:
+                        print(f"⚠ 删除失败: {e}\n" if lang == "zh" else f"⚠ Delete failed: {e}\n")
+                        continue
+                    print(f"已删除预设「{to_delete}」。\n" if lang == "zh" else f"Preset \"{to_delete}\" deleted.\n")
+                continue
+
+            # Load and sanitize chosen preset
+            preset_data = presets.get(chosen)
+            if not isinstance(preset_data, dict):
+                print("预设数据无效。\n" if lang == "zh" else "Invalid preset data.\n")
+                continue
+
+            restored, dropped = _sanitize_last_config(preset_data, flags)
+            if not restored:
+                print("此预设中的参数已失效。\n" if lang == "zh" else "All flags in this preset are stale.\n")
+                continue
+
+            if dropped > 0:
+                print(
+                    f"已忽略 {dropped} 个失效参数。"
+                    if lang == "zh"
+                    else f"Skipped {dropped} stale items."
+                )
+
+            checked.clear()
+            value_state.clear()
+            for sf in restored:
+                checked.add(sf.flag)
+                if sf.value is not None:
+                    value_state[sf.flag] = sf.value
+
+            summary_parts = [sf.flag for sf in restored]
+            print(
+                f"已加载预设「{chosen}」: {' '.join(summary_parts)}\n"
+                if lang == "zh"
+                else f"Loaded preset \"{chosen}\": {' '.join(summary_parts)}\n"
+            )
             continue
 
         selected: list[SelectedFlag]
