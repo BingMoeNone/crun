@@ -28,6 +28,22 @@ _LOGO = r"""
 """.strip("\n")
 
 
+def print_help() -> None:
+    _HELP = (
+        f"crun {__version__}\n"
+        "A TUI tool for selecting Claude Code startup flags.\n"
+        "\n"
+        "USAGE:\n"
+        "  crun                    Launch the TUI parameter selector\n"
+        "  crun --version, -V      Show version and exit\n"
+        "  crun --help, -h         Show this help and exit\n"
+        "\n"
+        "For more information, visit:\n"
+        "  https://github.com/BingNgeee/crun\n"
+    )
+    print(_HELP)
+
+
 def setup_logging() -> None:
     if os.environ.get("DEBUG"):
         logging.basicConfig(
@@ -60,6 +76,10 @@ def main() -> int:
     """
     if "--version" in sys.argv or "-V" in sys.argv:
         print(f"crun {__version__}")
+        return 0
+
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print_help()
         return 0
 
     setup_logging()
