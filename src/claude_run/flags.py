@@ -59,6 +59,7 @@ class Flag:
     type: str  # "single" | "multi" | "value"
     group: str
     choices: list[Choice] | None = None
+    conflicts_with: list[str] | None = None  # 互斥 flag 名列表
 
     def label(self, lang: str) -> str:
         return self.description.get(lang, self.description.get("en", ""))
@@ -129,6 +130,12 @@ def _parse_flags(data: dict) -> list[Flag]:
             if "choices" in item:
                 choices = [_parse_choice(c) for c in item["choices"] if _parse_choice(c)]
 
+            conflicts_with = item.get("conflicts_with")
+            if isinstance(conflicts_with, list):
+                conflicts_with = [str(c) for c in conflicts_with if isinstance(c, str)]
+            else:
+                conflicts_with = None
+
             flag_type = item.get("type", "multi")
             if flag_type not in ("single", "multi", "value"):
                 flag_type = "multi"
@@ -142,6 +149,7 @@ def _parse_flags(data: dict) -> list[Flag]:
                 type=flag_type,
                 group=group,
                 choices=choices,
+                conflicts_with=conflicts_with,
             ))
         except Exception as e:
             log.warning(f"解析参数条目失败: {e}，跳过")
