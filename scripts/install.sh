@@ -193,5 +193,5 @@ case ":${PATH}:" in
     ;;
 esac
 
-echo "  ${BOLD}运行 crun 开始使用。${NC}"
+printf "  ${BOLD}运行 crun 开始使用。${NC}\n"
 echo ""
