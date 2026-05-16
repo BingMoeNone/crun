@@ -4,6 +4,10 @@
     {
       "flag": "--model",
       "description": { "zh": "当前会话使用的模型，支持别名或完整模型名", "en": "Model for the current session (alias or full name)" },
+      "tip": {
+        "zh": "支持别名(sonnet/opus/haiku)或完整模型名(claude-sonnet-4-6)。\n可使用 --fallback-model 设置过载回退模型。",
+        "en": "Supports aliases (sonnet/opus/haiku) or full model names.\nUse --fallback-model for overload fallback."
+      },
       "required_args": [],
       "type": "single",
       "group": "model",
@@ -41,6 +45,10 @@
     {
       "flag": "--permission-mode",
       "description": { "zh": "当前会话的权限模式", "en": "Permission mode for the session" },
+      "tip": {
+        "zh": "控制 Claude 操作权限。auto=自动批准安全操作 acceptEdits=接受编辑 bypassPermissions=跳过所有权限提示",
+        "en": "Controls Claude permission behavior. auto=auto-approve safe ops, bypassPermissions=skip all prompts."
+      },
       "required_args": [],
       "type": "single",
       "group": "permission",
@@ -105,6 +113,10 @@
     {
       "flag": "--output-format",
       "description": { "zh": "输出格式（仅打印模式）", "en": "Output format for print mode" },
+      "tip": {
+        "zh": "仅打印模式(-p)生效。stream-json 支持逐事件流式输出。",
+        "en": "Print mode (-p) only. stream-json enables per-event streaming output."
+      },
       "required_args": [],
       "type": "single",
       "group": "output",
@@ -331,6 +343,10 @@
     {
       "flag": "--mcp-config",
       "description": { "zh": "从 JSON 文件或字符串加载 MCP 服务器配置", "en": "Load MCP servers from JSON files or strings" },
+      "tip": {
+        "zh": "从 JSON 文件或字符串加载 MCP 服务器。可多次使用加载多份配置。\n格式: {mcpServers: {...}}",
+        "en": "Load MCP servers from JSON file or string. Repeatable for multiple configs.\nFormat: {mcpServers: {...}}"
+      },
       "required_args": [{ "name": "config_path", "label": { "zh": "配置文件路径", "en": "Config file path" }, "placeholder": { "zh": "例: /path/to/mcp.json", "en": "e.g. /path/to/mcp.json" } }],
       "type": "value",
       "group": "mcp"
@@ -359,6 +375,10 @@
     {
       "flag": "--debug",
       "description": { "zh": "启用调试模式（可指定分类过滤）", "en": "Enable debug mode with optional category filtering" },
+      "tip": {
+        "zh": "启用调试日志。可选分类过滤如 api,hooks。日志写入 --debug-file 指定文件。",
+        "en": "Enable debug logging. Optional category filter e.g. api,hooks. Output to --debug-file."
+      },
       "required_args": [{ "name": "filter", "label": { "zh": "过滤分类", "en": "Filter category" }, "placeholder": { "zh": "例: api,hooks", "en": "e.g. api,hooks" } }],
       "type": "value",
       "group": "debug"
