@@ -173,25 +173,82 @@ if [[ -z "${existing_version}" ]]; then
   [[ -n "${installed_version}" ]] && echo "" && "${INSTALL_DIR}/crun" --version 2>/dev/null || true
 fi
 
-# ── Post-install checks ────────────────────────────────────────────────────────
+# ── Post-install ───────────────────────────────────────────────────────────────
 echo ""
 
+# 检测 shell 配置文件
+detect_shell_rc() {
+  local shell_name
+  shell_name="$(basename "${SHELL:-/bin/bash}")"
+  case "${shell_name}" in
+    zsh)  echo "${HOME}/.zshrc" ;;
+    bash) echo "${HOME}/.bashrc" ;;
+    *)    echo "${HOME}/.profile" ;;
+  esac
+}
+
+SHELL_RC="$(detect_shell_rc)"
+
+# 检查 claude 命令
 if ! command -v claude >/dev/null 2>&1; then
-  warn "系统中未找到 'claude' 命令，请先安装 Claude Code CLI: https://docs.anthropic.com/en/docs/claude-code/overview"
+  warn "系统中未找到 'claude' 命令，请先安装 Claude Code CLI"
+  echo "  https://docs.anthropic.com/en/docs/claude-code/overview"
   echo ""
 fi
 
-case ":${PATH}:" in
-  *":${INSTALL_DIR}:"*) ;;
-  *)
-    warn "${INSTALL_DIR} 不在 PATH 中"
-    echo ""
-    echo "  将以下行添加到 shell 配置文件 (~/.bashrc / ~/.zshrc):"
-    printf "    ${BOLD}export PATH=\"%s:\$PATH\"${NC}\n" "${INSTALL_DIR}"
-    echo "  然后执行 source ~/.bashrc (或 ~/.zshrc) 使其生效。"
-    echo ""
-    ;;
-esac
+# 检查 PATH
+if [[ ":${PATH}:" == *":${INSTALL_DIR}:"* ]]; then
+  ok "crun 已就绪，可以直接使用"
+  printf "  ${BOLD}运行 crun 开始使用。${NC}\n"
+  echo ""
+  exit 0
+fi
 
-printf "  ${BOLD}运行 crun 开始使用。${NC}\n"
+warn "${INSTALL_DIR} 不在 PATH 中"
+
+# 交互式询问：从 /dev/tty 读取（绕过 curl pipe 占用 stdin）
+read_confirm() {
+  local prompt="$1"
+  local answer
+  if [[ -t 0 ]]; then
+    # stdin 是终端，直接读
+    read -r -p "$(printf "  ${CYAN}?${NC} ${prompt} [Y/n]: ")" answer
+  elif [[ -e /dev/tty ]]; then
+    # curl pipe 场景，从 /dev/tty 读取
+    read -r -p "$(printf "  ${CYAN}?${NC} ${prompt} [Y/n]: ")" answer < /dev/tty
+  else
+    # 非交互模式，直接返回 no
+    echo "  (非交互模式，跳过)"
+    return 1
+  fi
+  [[ "${answer,,}" != "n" && "${answer,,}" != "no" ]]
+}
+
+if read_confirm "是否自动将 ${INSTALL_DIR} 添加到 PATH (${SHELL_RC})?"; then
+  echo ""
+
+  # 检查是否已有这一行
+  if grep -q "export PATH=\"${INSTALL_DIR}:\$PATH\"" "${SHELL_RC}" 2>/dev/null; then
+    ok "${SHELL_RC} 中已存在 PATH 配置，跳过"
+  else
+    echo "" >> "${SHELL_RC}"
+    echo "# crun" >> "${SHELL_RC}"
+    echo "export PATH=\"${INSTALL_DIR}:\$PATH\"" >> "${SHELL_RC}"
+    ok "已将 PATH 配置写入 ${SHELL_RC}"
+  fi
+
+  # 当前 shell 中生效
+  export PATH="${INSTALL_DIR}:${PATH}"
+  ok "当前终端已生效"
+
+  echo ""
+  printf "  ${BOLD}运行 crun 开始使用。${NC}\n"
+else
+  echo ""
+  echo "  稍后手动添加，将以下行添加到 ${SHELL_RC}:"
+  printf "    ${BOLD}export PATH=\"%s:\$PATH\"${NC}\n" "${INSTALL_DIR}"
+  echo "  然后执行 source ${SHELL_RC} 使其生效。"
+  echo ""
+fi
+
 echo ""
