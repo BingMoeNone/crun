@@ -53,29 +53,25 @@ def test_flag_structure():
 def test_load_flags_default():
     flags = load_flags()
     group_map = {f.group for f in flags}
-    assert "model" in group_map
-    assert "permission" in group_map
-    assert "session" in group_map
-    assert "output" in group_map
-    assert "tools" in group_map
-    assert "dev" in group_map
-    assert "debug" in group_map
-    assert "mcp" in group_map
+    expected_groups = {"model", "permission", "session", "output", "tools",
+                       "dev", "debug", "mcp", "system", "agent", "ide",
+                       "remote", "hook", "limit", "config"}
+    assert group_map == expected_groups
 
 
 def test_flag_has_label():
     flags = load_flags()
     model_flag = next(f for f in flags if f.flag == "--model")
-    assert model_flag.label("zh") == "当前会话使用的模型"
-    assert model_flag.label("en") == "Model for the current session"
+    assert model_flag.label("zh") == "当前会话使用的模型，支持别名或完整模型名"
+    assert model_flag.label("en") == "Model for the current session (alias or full name)"
 
 
 def test_flag_get_display_choices():
     flags = load_flags()
     model_flag = next(f for f in flags if f.flag == "--model")
     choices = model_flag.get_choices("zh")
-    assert len(choices) == 3
-    assert choices[0]["value"] == "opus"
+    assert len(choices) == 7
+    assert choices[0]["value"] == "sonnet"
 
 
 def test_flag_requires_value():
@@ -107,4 +103,28 @@ def test_default_flags_path_pyinstaller_mode(monkeypatch, tmp_path):
     target.write_text("{}", encoding="utf-8")
     monkeypatch.setattr("sys._MEIPASS", str(meipass), raising=False)
     assert _default_flags_path() == target
+
+
+def test_flag_conflicts_with():
+    """conflicts_with 引用的 flag 必须存在。"""
+    flags = load_flags()
+    all_names = {f.flag for f in flags}
+    for f in flags:
+        if f.conflicts_with:
+            for target in f.conflicts_with:
+                assert target in all_names, \
+                    f"{f.flag}.conflicts_with 引用不存在的 {target}"
+
+
+def test_flag_conflicts_symmetric():
+    """互斥关系应双向声明。"""
+    flags = load_flags()
+    for f in flags:
+        if f.conflicts_with:
+            for target in f.conflicts_with:
+                target_flag = next(fl for fl in flags if fl.flag == target)
+                assert target_flag.conflicts_with is not None, \
+                    f"{f.flag} 声明与 {target} 互斥，但 {target} 未声明 conflicts_with"
+                assert f.flag in target_flag.conflicts_with, \
+                    f"{f.flag} 声明与 {target} 互斥，但 {target} 未反向声明"
 
