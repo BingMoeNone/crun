@@ -128,14 +128,21 @@ __main__.main()
 
 | 组名 | 说明 | type |
 |------|------|------|
-| `model` | 模型选择 | single |
-| `permission` | 权限模式 | single |
-| `output` | 输出模式 | multi |
+| `model` | 模型选择 | single / value |
+| `permission` | 权限模式 | single / multi / value |
+| `output` | 输出模式 | single / multi / value |
 | `session` | 会话管理 | multi / value |
-| `tools` | 工具范围 | single |
-| `dev` | 开发模式 | multi |
-| `mcp` | MCP 配置 | value |
+| `tools` | 工具范围 | single / value |
+| `system` | 系统提示 | value |
+| `dev` | 开发模式 | multi / value |
+| `mcp` | MCP/插件 | value |
 | `debug` | 调试选项 | multi / value |
+| `agent` | Agent | single / multi / value |
+| `ide` | IDE/浏览器 | multi |
+| `remote` | 远程 | multi / value |
+| `hook` | Hooks | multi |
+| `limit` | 限制 | value |
+| `config` | 配置 | value |
 
 ## 重要笔记 / Important Notes
 

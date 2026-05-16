@@ -420,6 +420,22 @@ def _sanitize_last_config(last_cfg: dict | None, flags: list[Flag]) -> tuple[lis
                 continue
             result.append(SelectedFlag(flag_name, item_value))
 
+    # 互斥冲突清理：最后添加的获胜
+    flag_positions: dict[str, int] = {}
+    cleaned: list[SelectedFlag | None] = []
+    for sf in result:
+        f = by_name.get(sf.flag)
+        if f and f.conflicts_with:
+            for c in f.conflicts_with:
+                if c in flag_positions:
+                    idx = flag_positions[c]
+                    cleaned[idx] = None
+                    dropped += 1
+                    del flag_positions[c]
+        flag_positions[sf.flag] = len(cleaned)
+        cleaned.append(sf)
+    result = [sf for sf in cleaned if sf is not None]
+
     return result, dropped
 
 
