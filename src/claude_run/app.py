@@ -264,6 +264,11 @@ def _run_selector(
                 checked.discard(name)
             else:
                 checked.add(name)
+                # 互斥处理：取消冲突的已选项
+                conflicts = fl[ctx["cursor"]].conflicts_with or []
+                for c in conflicts:
+                    if c in checked:
+                        checked.discard(c)
         event.app.invalidate()
 
     @kb.add("/", eager=True, filter=~in_search_filter)
@@ -450,6 +455,13 @@ def run_app(prefs) -> list[str] | None:
 
         for name in prev_checked - checked:
             value_state.pop(name, None)
+
+        # 清理互斥 flag 的 value_state
+        for f in flags:
+            if f.flag in checked and f.conflicts_with:
+                for c in f.conflicts_with:
+                    if c not in checked:
+                        value_state.pop(c, None)
 
         newly_added = [
             f for f in flags
