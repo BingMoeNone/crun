@@ -60,9 +60,16 @@ class Flag:
     group: str
     choices: list[Choice] | None = None
     conflicts_with: list[str] | None = None  # 互斥 flag 名列表
+    tip: dict[str, str] | None = None  # 用户自定义提示文本
 
     def label(self, lang: str) -> str:
         return self.description.get(lang, self.description.get("en", ""))
+
+    def tip_str(self, lang: str) -> str | None:
+        """返回用户自定义的提示文本，若无则返回 None。"""
+        if self.tip:
+            return self.tip.get(lang, self.tip.get("en", ""))
+        return None
 
     def requires_value(self) -> bool:
         return self.type == "value" and len(self.required_args) > 0
@@ -150,6 +157,7 @@ def _parse_flags(data: dict) -> list[Flag]:
                 group=group,
                 choices=choices,
                 conflicts_with=conflicts_with,
+                tip=item.get("tip"),
             ))
         except Exception as e:
             log.warning(f"解析参数条目失败: {e}，跳过")
@@ -197,3 +205,37 @@ def load_flags() -> list[Flag]:
         default_map[cf.flag] = cf
 
     return list(default_map.values())
+
+
+def _auto_tip(f: Flag, lang: str) -> str:
+    """根据 Flag 元数据自动生成提示文本。"""
+    parts = []
+    if lang == "zh":
+        type_map = {"multi": "开关", "single": "单选", "value": "文本输入"}
+        parts.append(f"类型: {type_map.get(f.type, f.type)}")
+    else:
+        type_map = {"multi": "Toggle", "single": "Choice", "value": "Input"}
+        parts.append(f"Type: {type_map.get(f.type, f.type)}")
+
+    if f.choices:
+        values = ", ".join(c.value for c in f.choices[:5])
+        if len(f.choices) > 5:
+            values += f" [+{len(f.choices) - 5}]"
+        label = "可选值" if lang == "zh" else "Values"
+        parts.append(f"{label}: {values}")
+
+    if f.conflicts_with:
+        label = "互斥" if lang == "zh" else "Conflicts"
+        parts.append(f"{label}: {', '.join(f.conflicts_with)}")
+
+    if f.required_args:
+        for a in f.required_args:
+            arg_label = a.label_str(lang)
+            prefix = "参数" if lang == "zh" else "Arg"
+            parts.append(f"{prefix}: {arg_label}")
+            ph = a.placeholder_str(lang)
+            if ph:
+                example = "例" if lang == "zh" else "e.g."
+                parts[-1] += f" ({example}: {ph})"
+
+    return " | ".join(parts)

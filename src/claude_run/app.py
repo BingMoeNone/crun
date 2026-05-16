@@ -16,7 +16,7 @@ from prompt_toolkit.layout.containers import Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.styles import Style as PTStyle
 
-from claude_run.flags import Flag, load_flags, FlagsLoadError
+from claude_run.flags import Flag, load_flags, FlagsLoadError, _auto_tip
 from claude_run.search import search_flags, highlight_line
 from claude_run.runner import build_argv, validate_argv, SelectedFlag
 from claude_run.config import load_last_config, save_last_config, ConfigError
@@ -47,6 +47,7 @@ _PT_STYLE = PTStyle.from_dict({
     "item":          "",
     "item-val":      "fg:ansicyan",
     "status":        "fg:ansibrightblack italic",
+    "tip":           "fg:ansibrightblack italic",
     "group-label":   "fg:ansibrightblack italic",
     "search-match":  "fg:ansiyellow bold",
 })
@@ -227,6 +228,15 @@ def _run_selector(
 
         if vend < len(filtered):
             lines.append(("class:scroll", "  ↓\n"))
+
+        # 提示行：显示光标所在参数的详细信息
+        if ctx["filtered"] and not ctx["in_search"]:
+            idx = ctx["cursor"]
+            if 0 <= idx < len(ctx["filtered"]):
+                f = ctx["filtered"][idx]
+                tip_text = f.tip_str(lang) or _auto_tip(f, lang)
+                if tip_text:
+                    lines.append(("class:tip", f"  {tip_text[:80]}\n"))
 
         n_chk = len(checked)
         status = (f"  已选 {n_chk} 项" if lang == "zh" else f"  {n_chk} selected")
