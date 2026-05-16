@@ -3,15 +3,40 @@
   "flags": [
     {
       "flag": "--model",
-      "description": { "zh": "当前会话使用的模型", "en": "Model for the current session" },
+      "description": { "zh": "当前会话使用的模型，支持别名或完整模型名", "en": "Model for the current session (alias or full name)" },
       "required_args": [],
       "type": "single",
       "group": "model",
       "choices": [
-        { "value": "opus", "label": { "zh": "Opus", "en": "Opus" } },
-        { "value": "sonnet", "label": { "zh": "Sonnet", "en": "Sonnet" } },
-        { "value": "haiku", "label": { "zh": "Haiku", "en": "Haiku" } }
+        { "value": "sonnet", "label": { "zh": "Sonnet (最新)", "en": "Sonnet (latest)" } },
+        { "value": "opus", "label": { "zh": "Opus (最新)", "en": "Opus (latest)" } },
+        { "value": "haiku", "label": { "zh": "Haiku (最新)", "en": "Haiku (latest)" } },
+        { "value": "claude-sonnet-4-6", "label": { "zh": "Claude Sonnet 4.6", "en": "Claude Sonnet 4.6" } },
+        { "value": "claude-opus-4-7", "label": { "zh": "Claude Opus 4.7", "en": "Claude Opus 4.7" } },
+        { "value": "claude-opus-4-6", "label": { "zh": "Claude Opus 4.6", "en": "Claude Opus 4.6" } },
+        { "value": "claude-haiku-4-5", "label": { "zh": "Claude Haiku 4.5", "en": "Claude Haiku 4.5" } }
       ]
+    },
+    {
+      "flag": "--effort",
+      "description": { "zh": "设置当前会话的工作量级别", "en": "Set effort level for the current session" },
+      "required_args": [],
+      "type": "single",
+      "group": "model",
+      "choices": [
+        { "value": "low", "label": { "zh": "Low", "en": "Low" } },
+        { "value": "medium", "label": { "zh": "Medium", "en": "Medium" } },
+        { "value": "high", "label": { "zh": "High", "en": "High" } },
+        { "value": "xhigh", "label": { "zh": "XHigh", "en": "XHigh" } },
+        { "value": "max", "label": { "zh": "Max (仅当前会话)", "en": "Max (this session only)" } }
+      ]
+    },
+    {
+      "flag": "--fallback-model",
+      "description": { "zh": "默认模型过载时自动回退到指定模型（仅打印模式）", "en": "Auto fallback model when default is overloaded (print mode only)" },
+      "required_args": [{ "name": "model", "label": { "zh": "回退模型", "en": "Fallback model" }, "placeholder": { "zh": "例: sonnet", "en": "e.g. sonnet" } }],
+      "type": "value",
+      "group": "model"
     },
     {
       "flag": "--permission-mode",
@@ -29,6 +54,41 @@
       ]
     },
     {
+      "flag": "--dangerously-skip-permissions",
+      "description": { "zh": "跳过权限提示（等同于 --permission-mode bypassPermissions）", "en": "Skip all permission prompts (same as --permission-mode bypassPermissions)" },
+      "required_args": [],
+      "type": "multi",
+      "group": "permission"
+    },
+    {
+      "flag": "--allow-dangerously-skip-permissions",
+      "description": { "zh": "允许在 Shift+Tab 切换到 bypassPermissions 模式", "en": "Allow switching to bypassPermissions via Shift+Tab" },
+      "required_args": [],
+      "type": "multi",
+      "group": "permission"
+    },
+    {
+      "flag": "--allowedTools",
+      "description": { "zh": "无需提示权限即可执行的工具列表", "en": "Tools allowed without permission prompts" },
+      "required_args": [{ "name": "tools", "label": { "zh": "工具列表", "en": "Tool list" }, "placeholder": { "zh": "例: \"Bash(git *)\" \"Read\"", "en": "e.g. \"Bash(git *)\" \"Read\"" } }],
+      "type": "value",
+      "group": "permission"
+    },
+    {
+      "flag": "--disallowedTools",
+      "description": { "zh": "从模型上下文中移除的工具，不可使用", "en": "Tools removed from context, cannot be used" },
+      "required_args": [{ "name": "tools", "label": { "zh": "工具列表", "en": "Tool list" }, "placeholder": { "zh": "例: \"Bash(git *)\" \"Edit\"", "en": "e.g. \"Bash(git *)\" \"Edit\"" } }],
+      "type": "value",
+      "group": "permission"
+    },
+    {
+      "flag": "--permission-prompt-tool",
+      "description": { "zh": "指定 MCP 工具以在非交互模式下处理权限提示", "en": "MCP tool to handle permission prompts in non-interactive mode" },
+      "required_args": [{ "name": "tool", "label": { "zh": "MCP 工具名", "en": "MCP tool name" }, "placeholder": { "zh": "例: mcp_auth_tool", "en": "e.g. mcp_auth_tool" } }],
+      "type": "value",
+      "group": "permission"
+    },
+    {
       "flag": "-p",
       "description": { "zh": "打印输出后退出（非交互模式）", "en": "Print response and exit (non-interactive)" },
       "required_args": [],
@@ -36,8 +96,15 @@
       "group": "output"
     },
     {
+      "flag": "--print",
+      "description": { "zh": "打印输出后退出（非交互模式，同 -p）", "en": "Print response and exit (same as -p)" },
+      "required_args": [],
+      "type": "multi",
+      "group": "output"
+    },
+    {
       "flag": "--output-format",
-      "description": { "zh": "输出格式", "en": "Output format for print mode" },
+      "description": { "zh": "输出格式（仅打印模式）", "en": "Output format for print mode" },
       "required_args": [],
       "type": "single",
       "group": "output",
@@ -49,9 +116,48 @@
     },
     {
       "flag": "--json-schema",
-      "description": { "zh": "结构化输出的 JSON Schema 验证", "en": "JSON Schema for structured output validation" },
+      "description": { "zh": "结构化输出的 JSON Schema 验证（仅打印模式）", "en": "JSON Schema for structured output validation (print mode)" },
       "required_args": [{ "name": "schema", "label": { "zh": "Schema", "en": "Schema" }, "placeholder": { "zh": "例: {\"type\":\"object\"}", "en": "e.g. {\"type\":\"object\"}" } }],
       "type": "value",
+      "group": "output"
+    },
+    {
+      "flag": "--input-format",
+      "description": { "zh": "为打印模式指定输入格式", "en": "Specify input format for print mode" },
+      "required_args": [],
+      "type": "single",
+      "group": "output",
+      "choices": [
+        { "value": "text", "label": { "zh": "Text", "en": "Text" } },
+        { "value": "stream-json", "label": { "zh": "Stream JSON", "en": "Stream JSON" } }
+      ]
+    },
+    {
+      "flag": "--include-hook-events",
+      "description": { "zh": "在输出流中包含所有 hook 生命周期事件（需 --output-format stream-json）", "en": "Include hook lifecycle events in output (needs --output-format stream-json)" },
+      "required_args": [],
+      "type": "multi",
+      "group": "output"
+    },
+    {
+      "flag": "--include-partial-messages",
+      "description": { "zh": "在输出中包含部分流事件（需 -p 和 --output-format stream-json）", "en": "Include partial stream events in output (needs -p and stream-json)" },
+      "required_args": [],
+      "type": "multi",
+      "group": "output"
+    },
+    {
+      "flag": "--replay-user-messages",
+      "description": { "zh": "从 stdin 重放用户消息到 stdout（需 stream-json 输入输出）", "en": "Re-emit user messages from stdin to stdout (needs stream-json I/O)" },
+      "required_args": [],
+      "type": "multi",
+      "group": "output"
+    },
+    {
+      "flag": "--exclude-dynamic-system-prompt-sections",
+      "description": { "zh": "将机器相关部分从系统提示移到首条用户消息，改进跨机器缓存重用", "en": "Move machine-specific prompt sections to first user message for cache reuse" },
+      "required_args": [],
+      "type": "multi",
       "group": "output"
     },
     {
@@ -63,22 +169,22 @@
     },
     {
       "flag": "--continue",
-      "description": { "zh": "继续当前目录最近的会话（同 -c）", "en": "Continue the most recent conversation" },
+      "description": { "zh": "继续当前目录最近的会话（同 -c）", "en": "Continue the most recent conversation (same as -c)" },
       "required_args": [],
       "type": "multi",
       "group": "session"
     },
     {
       "flag": "-r",
-      "description": { "zh": "通过会话 ID 恢复会话，或打开交互选择器", "en": "Resume a conversation by session ID" },
-      "required_args": [{ "name": "session_id", "label": { "zh": "会话 ID", "en": "Session ID" }, "placeholder": { "zh": "例: abc-123", "en": "e.g. abc-123" } }],
+      "description": { "zh": "通过会话 ID 或名称恢复会话，或打开交互选择器", "en": "Resume a session by ID or name, or open interactive selector" },
+      "required_args": [{ "name": "session_id", "label": { "zh": "会话 ID/名称", "en": "Session ID/name" }, "placeholder": { "zh": "例: abc-123", "en": "e.g. abc-123" } }],
       "type": "value",
       "group": "session"
     },
     {
       "flag": "--resume",
-      "description": { "zh": "恢复会话（同 -r）", "en": "Resume a conversation" },
-      "required_args": [{ "name": "session_id", "label": { "zh": "会话 ID", "en": "Session ID" }, "placeholder": { "zh": "例: abc-123", "en": "e.g. abc-123" } }],
+      "description": { "zh": "恢复会话（同 -r）", "en": "Resume a conversation (same as -r)" },
+      "required_args": [{ "name": "session_id", "label": { "zh": "会话 ID/名称", "en": "Session ID/name" }, "placeholder": { "zh": "例: auth-refactor", "en": "e.g. auth-refactor" } }],
       "type": "value",
       "group": "session"
     },
@@ -91,14 +197,42 @@
     },
     {
       "flag": "--session-id",
-      "description": { "zh": "使用指定 UUID 的会话", "en": "Use a specific session ID" },
+      "description": { "zh": "使用指定 UUID 的会话", "en": "Use a specific session UUID" },
       "required_args": [{ "name": "uuid", "label": { "zh": "UUID", "en": "UUID" }, "placeholder": { "zh": "例: 550e8400-e29b-41d4-a716-446655440000", "en": "e.g. 550e8400-e29b-41d4-a716-446655440000" } }],
       "type": "value",
       "group": "session"
     },
     {
+      "flag": "-n",
+      "description": { "zh": "为会话设置显示名称", "en": "Set a display name for the session" },
+      "required_args": [{ "name": "name", "label": { "zh": "会话名称", "en": "Session name" }, "placeholder": { "zh": "例: my-feature-work", "en": "e.g. my-feature-work" } }],
+      "type": "value",
+      "group": "session"
+    },
+    {
+      "flag": "--name",
+      "description": { "zh": "为会话设置显示名称（同 -n）", "en": "Set a display name for the session (same as -n)" },
+      "required_args": [{ "name": "name", "label": { "zh": "会话名称", "en": "Session name" }, "placeholder": { "zh": "例: my-feature-work", "en": "e.g. my-feature-work" } }],
+      "type": "value",
+      "group": "session"
+    },
+    {
+      "flag": "--from-pr",
+      "description": { "zh": "恢复链接到特定 PR 的会话（PR 号或 URL）", "en": "Resume session linked to a pull request (number or URL)" },
+      "required_args": [{ "name": "pr", "label": { "zh": "PR 号/URL", "en": "PR number/URL" }, "placeholder": { "zh": "例: 123", "en": "e.g. 123" } }],
+      "type": "value",
+      "group": "session"
+    },
+    {
+      "flag": "--no-session-persistence",
+      "description": { "zh": "禁用会话持久化，会话不保存到磁盘（仅打印模式）", "en": "Disable session persistence (print mode only)" },
+      "required_args": [],
+      "type": "multi",
+      "group": "session"
+    },
+    {
       "flag": "--tools",
-      "description": { "zh": "指定可用的内置工具", "en": "Specify available built-in tools" },
+      "description": { "zh": "限制可用的内置工具（\"\" 禁用所有，\"default\" 全部）", "en": "Limit available built-in tools (\"\" to disable all, \"default\" for all)" },
       "required_args": [],
       "type": "single",
       "group": "tools",
@@ -109,30 +243,109 @@
       ]
     },
     {
+      "flag": "--add-dir",
+      "description": { "zh": "添加额外的工作目录以读取和编辑文件", "en": "Add additional working directories for file access" },
+      "required_args": [{ "name": "dir", "label": { "zh": "目录路径", "en": "Directory path" }, "placeholder": { "zh": "例: ../apps ../lib", "en": "e.g. ../apps ../lib" } }],
+      "type": "value",
+      "group": "tools"
+    },
+    {
+      "flag": "--system-prompt",
+      "description": { "zh": "用自定义文本替换整个系统提示", "en": "Replace the entire system prompt with custom text" },
+      "required_args": [{ "name": "prompt", "label": { "zh": "系统提示", "en": "System prompt" }, "placeholder": { "zh": "例: You are a Python expert", "en": "e.g. You are a Python expert" } }],
+      "type": "value",
+      "group": "system",
+      "conflicts_with": ["--system-prompt-file"]
+    },
+    {
+      "flag": "--system-prompt-file",
+      "description": { "zh": "从文件加载系统提示，替换默认提示", "en": "Load system prompt from file, replacing the default" },
+      "required_args": [{ "name": "path", "label": { "zh": "文件路径", "en": "File path" }, "placeholder": { "zh": "例: ./custom-prompt.txt", "en": "e.g. ./custom-prompt.txt" } }],
+      "type": "value",
+      "group": "system",
+      "conflicts_with": ["--system-prompt"]
+    },
+    {
+      "flag": "--append-system-prompt",
+      "description": { "zh": "将自定义文本附加到默认系统提示末尾", "en": "Append custom text to the end of the default system prompt" },
+      "required_args": [{ "name": "text", "label": { "zh": "附加文本", "en": "Append text" }, "placeholder": { "zh": "例: Always use TypeScript", "en": "e.g. Always use TypeScript" } }],
+      "type": "value",
+      "group": "system"
+    },
+    {
+      "flag": "--append-system-prompt-file",
+      "description": { "zh": "从文件加载额外系统提示文本并附加到默认提示", "en": "Load additional system prompt text from file and append" },
+      "required_args": [{ "name": "path", "label": { "zh": "文件路径", "en": "File path" }, "placeholder": { "zh": "例: ./extra-rules.txt", "en": "e.g. ./extra-rules.txt" } }],
+      "type": "value",
+      "group": "system"
+    },
+    {
       "flag": "--bare",
-      "description": { "zh": "最小化模式：跳过 hooks、LSP、插件同步、归属、auto-memory 等", "en": "Minimal mode: skip hooks, LSP, plugin sync, attribution, auto-memory" },
+      "description": { "zh": "最小模式：跳过 hooks、skills、plugins、MCP 服务器、auto-memory 和 CLAUDE.md 自动发现", "en": "Minimal mode: skip hooks, skills, plugins, MCP servers, auto-memory, and CLAUDE.md auto-discovery" },
       "required_args": [],
       "type": "multi",
       "group": "dev"
     },
     {
       "flag": "--disable-slash-commands",
-      "description": { "zh": "禁用所有 skills", "en": "Disable all slash command skills" },
+      "description": { "zh": "为此会话禁用所有 skills 和命令", "en": "Disable all slash command skills and commands for this session" },
       "required_args": [],
       "type": "multi",
       "group": "dev"
     },
     {
       "flag": "--strict-mcp-config",
-      "description": { "zh": "仅使用 --mcp-config 指定的 MCP 服务器", "en": "Only use MCP servers from --mcp-config, ignoring other MCP configurations" },
+      "description": { "zh": "仅使用 --mcp-config 指定的 MCP 服务器，忽略其他 MCP 配置", "en": "Only use MCP servers from --mcp-config, ignoring other MCP configurations" },
       "required_args": [],
       "type": "multi",
       "group": "dev"
     },
     {
+      "flag": "--verbose",
+      "description": { "zh": "启用详细日志记录，显示完整的逐轮输出", "en": "Enable verbose logging, showing full turn-by-turn output" },
+      "required_args": [],
+      "type": "multi",
+      "group": "dev"
+    },
+    {
+      "flag": "-v",
+      "description": { "zh": "输出版本号", "en": "Output version number" },
+      "required_args": [],
+      "type": "multi",
+      "group": "dev"
+    },
+    {
+      "flag": "--version",
+      "description": { "zh": "输出版本号（同 -v）", "en": "Output version number (same as -v)" },
+      "required_args": [],
+      "type": "multi",
+      "group": "dev"
+    },
+    {
+      "flag": "--betas",
+      "description": { "zh": "要包含在 API 请求中的 Beta 标头（仅 API 密钥用户）", "en": "Beta headers to include in API requests (API key users only)" },
+      "required_args": [{ "name": "betas", "label": { "zh": "Beta 标头", "en": "Beta headers" }, "placeholder": { "zh": "例: interleaved-thinking", "en": "e.g. interleaved-thinking" } }],
+      "type": "value",
+      "group": "dev"
+    },
+    {
       "flag": "--mcp-config",
-      "description": { "zh": "从 JSON 文件加载 MCP 服务器配置", "en": "Load MCP servers from JSON files" },
+      "description": { "zh": "从 JSON 文件或字符串加载 MCP 服务器配置", "en": "Load MCP servers from JSON files or strings" },
       "required_args": [{ "name": "config_path", "label": { "zh": "配置文件路径", "en": "Config file path" }, "placeholder": { "zh": "例: /path/to/mcp.json", "en": "e.g. /path/to/mcp.json" } }],
+      "type": "value",
+      "group": "mcp"
+    },
+    {
+      "flag": "--plugin-dir",
+      "description": { "zh": "从此目录或 .zip 加载插件（可重复使用以加载多个）", "en": "Load plugin from directory or .zip (repeatable for multiple)" },
+      "required_args": [{ "name": "path", "label": { "zh": "插件路径", "en": "Plugin path" }, "placeholder": { "zh": "例: ./my-plugin", "en": "e.g. ./my-plugin" } }],
+      "type": "value",
+      "group": "mcp"
+    },
+    {
+      "flag": "--plugin-url",
+      "description": { "zh": "从 URL 获取插件 .zip 存档（可重复使用以加载多个）", "en": "Fetch plugin .zip from URL (repeatable for multiple)" },
+      "required_args": [{ "name": "url", "label": { "zh": "插件 URL", "en": "Plugin URL" }, "placeholder": { "zh": "例: https://example.com/plugin.zip", "en": "e.g. https://example.com/plugin.zip" } }],
       "type": "value",
       "group": "mcp"
     },
@@ -156,6 +369,181 @@
       "required_args": [{ "name": "path", "label": { "zh": "日志文件路径", "en": "Log file path" }, "placeholder": { "zh": "例: /tmp/claude-debug.log", "en": "e.g. /tmp/claude-debug.log" } }],
       "type": "value",
       "group": "debug"
+    },
+    {
+      "flag": "--agent",
+      "description": { "zh": "为当前会话指定代理（覆盖 agent 设置）", "en": "Specify agent for the current session" },
+      "required_args": [{ "name": "agent", "label": { "zh": "代理名称", "en": "Agent name" }, "placeholder": { "zh": "例: my-custom-agent", "en": "e.g. my-custom-agent" } }],
+      "type": "value",
+      "group": "agent"
+    },
+    {
+      "flag": "--agents",
+      "description": { "zh": "通过 JSON 动态定义自定义 subagents", "en": "Dynamically define custom subagents via JSON" },
+      "required_args": [{ "name": "json", "label": { "zh": "JSON 定义", "en": "JSON definition" }, "placeholder": { "zh": "例: {\"reviewer\":{\"description\":\"...\",\"prompt\":\"...\"}}", "en": "e.g. {\"reviewer\":{\"description\":\"...\",\"prompt\":\"...\"}}" } }],
+      "type": "value",
+      "group": "agent"
+    },
+    {
+      "flag": "--bg",
+      "description": { "zh": "启动会话作为后台代理并立即返回", "en": "Start session as background agent and return immediately" },
+      "required_args": [],
+      "type": "multi",
+      "group": "agent"
+    },
+    {
+      "flag": "--teammate-mode",
+      "description": { "zh": "设置 agent team 队友的显示方式", "en": "Set how agent team teammates are displayed" },
+      "required_args": [],
+      "type": "single",
+      "group": "agent",
+      "choices": [
+        { "value": "auto", "label": { "zh": "Auto（默认）", "en": "Auto (default)" } },
+        { "value": "in-process", "label": { "zh": "In-Process", "en": "In-Process" } },
+        { "value": "tmux", "label": { "zh": "Tmux", "en": "Tmux" } }
+      ]
+    },
+    {
+      "flag": "-w",
+      "description": { "zh": "在隔离的 git worktree 中启动 Claude", "en": "Start Claude in an isolated git worktree" },
+      "required_args": [{ "name": "name", "label": { "zh": "worktree 名称", "en": "Worktree name" }, "placeholder": { "zh": "例: feature-auth", "en": "e.g. feature-auth" } }],
+      "type": "value",
+      "group": "agent"
+    },
+    {
+      "flag": "--worktree",
+      "description": { "zh": "在隔离的 git worktree 中启动 Claude（同 -w）", "en": "Start Claude in an isolated git worktree (same as -w)" },
+      "required_args": [{ "name": "name", "label": { "zh": "worktree 名称", "en": "Worktree name" }, "placeholder": { "zh": "例: feature-auth", "en": "e.g. feature-auth" } }],
+      "type": "value",
+      "group": "agent"
+    },
+    {
+      "flag": "--tmux",
+      "description": { "zh": "为 worktree 创建 tmux 会话（需 --worktree）", "en": "Create tmux session for worktree (needs --worktree)" },
+      "required_args": [{ "name": "type", "label": { "zh": "tmux 类型", "en": "Tmux type" }, "placeholder": { "zh": "留空或 classic", "en": "empty or classic" } }],
+      "type": "value",
+      "group": "agent"
+    },
+    {
+      "flag": "--ide",
+      "description": { "zh": "启动时自动连接到可用的 IDE", "en": "Auto-connect to an available IDE at startup" },
+      "required_args": [],
+      "type": "multi",
+      "group": "ide"
+    },
+    {
+      "flag": "--chrome",
+      "description": { "zh": "启用 Chrome 浏览器集成以进行网络自动化和测试", "en": "Enable Chrome browser integration for web automation and testing" },
+      "required_args": [],
+      "type": "multi",
+      "group": "ide",
+      "conflicts_with": ["--no-chrome"]
+    },
+    {
+      "flag": "--no-chrome",
+      "description": { "zh": "为此会话禁用 Chrome 浏览器集成", "en": "Disable Chrome browser integration for this session" },
+      "required_args": [],
+      "type": "multi",
+      "group": "ide",
+      "conflicts_with": ["--chrome"]
+    },
+    {
+      "flag": "--remote",
+      "description": { "zh": "在 claude.ai 上创建新的网络会话", "en": "Create a new web session on claude.ai" },
+      "required_args": [],
+      "type": "multi",
+      "group": "remote"
+    },
+    {
+      "flag": "--rc",
+      "description": { "zh": "启动启用了 Remote Control 的交互式会话", "en": "Start interactive session with Remote Control enabled" },
+      "required_args": [],
+      "type": "multi",
+      "group": "remote"
+    },
+    {
+      "flag": "--remote-control",
+      "description": { "zh": "启动启用了 Remote Control 的交互式会话（同 --rc）", "en": "Start interactive session with Remote Control enabled (same as --rc)" },
+      "required_args": [],
+      "type": "multi",
+      "group": "remote"
+    },
+    {
+      "flag": "--remote-control-session-name-prefix",
+      "description": { "zh": "Remote Control 自动生成会话名称的前缀", "en": "Prefix for auto-generated Remote Control session names" },
+      "required_args": [{ "name": "prefix", "label": { "zh": "名称前缀", "en": "Name prefix" }, "placeholder": { "zh": "例: dev-box", "en": "e.g. dev-box" } }],
+      "type": "value",
+      "group": "remote"
+    },
+    {
+      "flag": "--teleport",
+      "description": { "zh": "在本地终端中恢复网络会话", "en": "Resume a web session in the local terminal" },
+      "required_args": [],
+      "type": "multi",
+      "group": "remote"
+    },
+    {
+      "flag": "--channels",
+      "description": { "zh": "MCP 服务器 channel 通知列表（研究预览）", "en": "MCP server channel notification list (research preview)" },
+      "required_args": [{ "name": "channels", "label": { "zh": "Channel 列表", "en": "Channel list" }, "placeholder": { "zh": "例: plugin:my-notifier@my-marketplace", "en": "e.g. plugin:my-notifier@my-marketplace" } }],
+      "type": "value",
+      "group": "remote"
+    },
+    {
+      "flag": "--dangerously-load-development-channels",
+      "description": { "zh": "启用不在批准允许列表中的 channels（本地开发用）", "en": "Enable channels not on the approved allowlist (for local dev)" },
+      "required_args": [{ "name": "channels", "label": { "zh": "Channel 条目", "en": "Channel entries" }, "placeholder": { "zh": "例: server:webhook", "en": "e.g. server:webhook" } }],
+      "type": "value",
+      "group": "remote"
+    },
+    {
+      "flag": "--init",
+      "description": { "zh": "在会话前运行 setup hooks（仅打印模式）", "en": "Run setup hooks before session (print mode only)" },
+      "required_args": [],
+      "type": "multi",
+      "group": "hook"
+    },
+    {
+      "flag": "--init-only",
+      "description": { "zh": "运行 Setup 和 SessionStart hooks 后退出", "en": "Run Setup and SessionStart hooks then exit" },
+      "required_args": [],
+      "type": "multi",
+      "group": "hook"
+    },
+    {
+      "flag": "--maintenance",
+      "description": { "zh": "在会话前运行 maintenance hooks（仅打印模式）", "en": "Run maintenance hooks before session (print mode only)" },
+      "required_args": [],
+      "type": "multi",
+      "group": "hook"
+    },
+    {
+      "flag": "--max-budget-usd",
+      "description": { "zh": "API 调用前停止的最大美元金额（仅打印模式）", "en": "Max USD amount before stopping API calls (print mode)" },
+      "required_args": [{ "name": "amount", "label": { "zh": "金额 (USD)", "en": "Amount (USD)" }, "placeholder": { "zh": "例: 5.00", "en": "e.g. 5.00" } }],
+      "type": "value",
+      "group": "limit"
+    },
+    {
+      "flag": "--max-turns",
+      "description": { "zh": "限制代理转数（仅打印模式），达到限制时以错误退出", "en": "Limit agent turns (print mode), exits with error when reached" },
+      "required_args": [{ "name": "turns", "label": { "zh": "转数", "en": "Turns" }, "placeholder": { "zh": "例: 3", "en": "e.g. 3" } }],
+      "type": "value",
+      "group": "limit"
+    },
+    {
+      "flag": "--settings",
+      "description": { "zh": "设置 JSON 文件的路径或内联 JSON 字符串", "en": "Path to settings JSON file or inline JSON string" },
+      "required_args": [{ "name": "settings", "label": { "zh": "设置路径/JSON", "en": "Settings path/JSON" }, "placeholder": { "zh": "例: ./settings.json", "en": "e.g. ./settings.json" } }],
+      "type": "value",
+      "group": "config"
+    },
+    {
+      "flag": "--setting-sources",
+      "description": { "zh": "逗号分隔的设置源列表（user, project, local）", "en": "Comma-separated list of setting sources (user, project, local)" },
+      "required_args": [{ "name": "sources", "label": { "zh": "设置源", "en": "Setting sources" }, "placeholder": { "zh": "例: user,project", "en": "e.g. user,project" } }],
+      "type": "value",
+      "group": "config"
     }
   ]
 }
