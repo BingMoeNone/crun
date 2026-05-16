@@ -119,11 +119,11 @@ debug "tmp_dir   = ${tmp_dir}"
 CURL_ARGS=(
   --fail
   --location
-  --progress-bar
   --show-error
   --proto '=https'
   --tlsv1.2
   --retry 3
+  --retry-delay 5
   --connect-timeout 30
   --max-time 600
 )
@@ -134,6 +134,7 @@ fi
 
 info "下载 ${asset} ..."
 echo "  URL: ${binary_url}"
+echo "  大小约 12MB，请耐心等待..."
 if ! curl "${CURL_ARGS[@]}" "${binary_url}" -o "${tmp_dir}/${asset}"; then
   echo ""
   err "下载失败 (exit code: $?)
