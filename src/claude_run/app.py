@@ -19,7 +19,11 @@ from prompt_toolkit.styles import Style as PTStyle
 from claude_run.flags import Flag, load_flags, FlagsLoadError, auto_tip
 from claude_run.search import search_flags, highlight_line
 from claude_run.runner import build_argv, validate_argv, SelectedFlag
-from claude_run.config import load_last_config, save_last_config, ConfigError
+from claude_run.config import (
+    ConfigError,
+    load_history, save_history_entry, _migrate_last_config_to_history,
+    history_mode_for_terminal,
+)
 
 
 # ── 样式 ─────────────────────────────────────────────────────────────────────
@@ -564,36 +568,136 @@ def run_app(prefs) -> list[str] | None:
         argv: list[str]
 
         if not selected_objs:
-            last_cfg = load_last_config()
-            restored, dropped = _sanitize_last_config(last_cfg, flags)
-            if not restored:
-                print("未找到可用的上次配置。\n" if lang == "zh" else "No usable last configuration found.\n")
+            # ── History reuse ──────────────────────────────────────────
+            entries = load_history()
+            if not entries:
+                migrated = _migrate_last_config_to_history()
+                if migrated:
+                    entries = migrated
+            if not entries:
+                print("未找到命令历史。\n" if lang == "zh" else "No command history found.\n")
                 continue
 
-            argv = build_argv(restored)
+            try:
+                term_lines = os.get_terminal_size().lines
+            except OSError:
+                term_lines = 24
+
+            mode = history_mode_for_terminal(prefs.history_mode, term_lines)
+            n = len(entries)
+            chosen_idx = 0  # default: most recent
+
+            if mode == "A":
+                # Full numbered list
+                print("\n── 命令历史 ──" if lang == "zh" else "\n── Command History ──")
+                for idx in range(n):
+                    e = entries[idx]
+                    num = idx + 1
+                    ts = e.get("saved_at", "")[:16]
+                    preview = e.get("preview", "")
+                    print(f"  {num}. {preview}  ({ts})")
+                print()
+                prompt = (
+                    f"输入编号 (1-{n}, 默认 按 Enter 选 1) 或 输入 q 取消:"
+                    if lang == "zh" else
+                    f"Enter number (1-{n}, Enter for 1) or q to cancel:"
+                )
+                val = questionary.text(prompt, default="1", style=_Q_STYLE).ask()
+                if val is None:
+                    continue
+                val = val.strip()
+                if val.lower() == "q" or val == "":
+                    if val == "":
+                        chosen_idx = 0  # default to first
+                    else:
+                        continue
+                else:
+                    try:
+                        num = int(val)
+                        if num < 1 or num > n:
+                            print("编号无效。\n" if lang == "zh" else "Invalid number.\n")
+                            continue
+                        chosen_idx = num - 1
+                    except ValueError:
+                        print("编号无效。\n" if lang == "zh" else "Invalid number.\n")
+                        continue
+            else:
+                # Mode B: compact preview
+                latest = entries[0]
+                preview_text = latest.get("preview", "")
+                print(
+                    f"\n── 最近命令 ──\n  {preview_text}\n"
+                    if lang == "zh" else
+                    f"\n── Recent Command ──\n  {preview_text}\n"
+                )
+                action = questionary.select(
+                    "选择操作:" if lang == "zh" else "Choose action:",
+                    choices=[
+                        questionary.Choice("使用此配置" if lang == "zh" else "Use this config", value="use"),
+                        questionary.Choice("更多历史..." if lang == "zh" else "More history...", value="more"),
+                        questionary.Choice("重新选择" if lang == "zh" else "Reselect", value="reselect"),
+                    ],
+                    style=_Q_STYLE,
+                ).ask()
+                if action is None or action == "reselect":
+                    continue
+                if action == "use":
+                    chosen_idx = 0
+                elif action == "more":
+                    print("\n── 命令历史 ──" if lang == "zh" else "\n── Command History ──")
+                    for idx in range(n):
+                        e = entries[idx]
+                        num = idx + 1
+                        ts = e.get("saved_at", "")[:16]
+                        preview = e.get("preview", "")
+                        print(f"  {num}. {preview}  ({ts})")
+                    print()
+                    prompt = (
+                        f"输入编号 (1-{n}, 默认 按 Enter 选 1):"
+                        if lang == "zh" else
+                        f"Enter number (1-{n}, Enter for 1):"
+                    )
+                    val = questionary.text(prompt, default="1", style=_Q_STYLE).ask()
+                    if val is None:
+                        continue
+                    val = val.strip()
+                    if val == "":
+                        chosen_idx = 0
+                    else:
+                        try:
+                            num = int(val)
+                            if num < 1 or num > n:
+                                print("编号无效。\n" if lang == "zh" else "Invalid number.\n")
+                                continue
+                            chosen_idx = num - 1
+                        except ValueError:
+                            print("编号无效。\n" if lang == "zh" else "Invalid number.\n")
+                            continue
+
+            # Sanitize chosen entry
+            chosen = entries[chosen_idx]
+            restored, dropped = _sanitize_last_config(chosen, flags)
+            if not restored:
+                print("此历史配置已失效。\n" if lang == "zh" else "This history entry is no longer valid.\n")
+                continue
+
             if dropped > 0:
                 print(
-                    f"检测到 {dropped} 个历史参数已失效，已自动忽略。"
+                    f"已忽略 {dropped} 个失效参数。"
                     if lang == "zh"
-                    else f"{dropped} stale history items were ignored."
+                    else f"Skipped {dropped} stale items."
                 )
-            print(f"\n上次配置：{' '.join(argv)}\n" if lang == "zh" else f"\nLast config: {' '.join(argv)}\n")
 
-            reuse = questionary.select(
-                "当前未选择参数，是否使用上次配置？" if lang == "zh" else "No flags selected. Use last config?",
-                choices=[
-                    questionary.Choice("使用上次配置" if lang == "zh" else "Use last config", value="use"),
-                    questionary.Choice("重新选择" if lang == "zh" else "Reselect", value="reselect"),
-                    questionary.Choice("取消退出" if lang == "zh" else "Cancel", value="cancel"),
-                ],
-                style=_Q_STYLE,
-            ).ask()
+            # Restore checked and value_state
+            checked.clear()
+            value_state.clear()
+            for sf in restored:
+                checked.add(sf.flag)
+                if sf.value is not None:
+                    value_state[sf.flag] = sf.value
 
-            if reuse == "reselect":
-                continue
-            if reuse != "use":
-                return None
             selected = restored
+            argv = build_argv(restored)
         else:
             selected = _build_selected(selected_objs, value_state)
             argv = build_argv(selected)
@@ -614,7 +718,11 @@ def run_app(prefs) -> list[str] | None:
 
         if confirm:
             try:
-                save_last_config(_build_last_config_snapshot(selected, flags_by_name))
+                argv_str = " ".join(argv)
+                save_history_entry(
+                    _build_last_config_snapshot(selected, flags_by_name)["selected"],
+                    argv_str,
+                )
             except ConfigError as e:
-                print(f"⚠ 保存上次配置失败: {e}" if lang == "zh" else f"⚠ Failed to save last config: {e}")
+                print(f"⚠ 保存历史失败: {e}" if lang == "zh" else f"⚠ Failed to save history: {e}")
             return argv

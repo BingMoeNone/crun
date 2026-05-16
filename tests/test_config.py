@@ -142,3 +142,76 @@ def test_migration_both_exist_keeps_new(tmp_path, monkeypatch):
     assert old.exists()  # 旧目录不动
     assert new.exists()
     assert (new / "existing.txt").read_text() == "keep me"
+
+
+# ── History API tests ─────────────────────────────────────────────────────────
+
+from claude_run.config import (
+    load_history, save_history_entry, HISTORY_PATH, history_mode_for_terminal,
+)
+
+def test_save_and_load_history(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "history.json"
+        monkeypatch.setattr("claude_run.config.HISTORY_PATH", path)
+
+        save_history_entry(
+            [{"flag": "--model", "type": "single", "value": "sonnet"}],
+            "claude --model sonnet",
+            config_path=path,
+        )
+        entries = load_history(path)
+        assert len(entries) == 1
+        assert entries[0]["preview"] == "claude --model sonnet"
+        assert entries[0]["id"] == 1
+
+
+def test_history_max_9():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "history.json"
+        for i in range(12):
+            save_history_entry(
+                [{"flag": f"--flag{i}", "type": "multi", "value": True}],
+                f"claude --flag{i}",
+                config_path=path,
+            )
+        entries = load_history(path)
+        assert len(entries) == 9
+        # newest first (highest id)
+        assert entries[0]["preview"] == "claude --flag11"
+
+
+def test_load_history_empty():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "nonexistent.json"
+        assert load_history(path) == []
+
+
+def test_lost_config_migration(monkeypatch):
+    """old last_config.json → history.json migration"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        last_path = Path(tmpdir) / "last_config.json"
+        hist_path = Path(tmpdir) / "history.json"
+        last_data = {
+            "version": 1,
+            "saved_at": "2026-05-16T00:00:00Z",
+            "selected": [{"flag": "--bare", "type": "multi", "value": True}],
+        }
+        import json
+        last_path.write_text(json.dumps(last_data))
+        from claude_run.config import _migrate_last_config_to_history
+        _migrate_last_config_to_history(last_path, hist_path)
+        assert not last_path.exists()  # old file deleted
+        entries = load_history(hist_path)
+        assert len(entries) == 1
+        assert entries[0]["selected"][0]["flag"] == "--bare"
+
+
+def test_history_mode_adaptive():
+    # large terminal → A
+    assert history_mode_for_terminal(None, 40) == "A"
+    # small terminal → B (less than 10% space remaining)
+    assert history_mode_for_terminal(None, 14) == "B"
+    # user setting takes priority
+    assert history_mode_for_terminal("B", 40) == "B"
+    assert history_mode_for_terminal("A", 14) == "A"

@@ -1,5 +1,6 @@
 """配置管理：用户偏好读写，带回退默认值。"""
 from dataclasses import dataclass, asdict
+from datetime import datetime, timezone
 from pathlib import Path
 import json
 import logging
@@ -10,6 +11,8 @@ CONFIG_DIR = Path.home() / ".config" / "crun"
 OLD_CONFIG_DIR = Path.home() / ".config" / "claude-run"
 PREFERENCES_PATH = CONFIG_DIR / "preferences.json"
 LAST_CONFIG_PATH = CONFIG_DIR / "last_config.json"
+HISTORY_PATH = CONFIG_DIR / "history.json"
+HISTORY_MAX = 9
 
 
 def _migrate_old_config() -> None:
@@ -37,6 +40,7 @@ class Preferences:
     search_mode: str = "A"      # "A" / "B" / "both"
     language: str = "zh"        # "zh" / "en"
     first_run: bool = True
+    history_mode: str | None = None  # "A" / "B" / None(auto)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -44,7 +48,7 @@ class Preferences:
     @classmethod
     def from_dict(cls, d: dict) -> "Preferences":
         # 只取有效字段，忽略多余字段
-        valid_keys = {"search_mode", "language", "first_run"}
+        valid_keys = {"search_mode", "language", "first_run", "history_mode"}
         filtered = {k: v for k, v in d.items() if k in valid_keys}
         return cls(**filtered)
 
@@ -154,6 +158,101 @@ def load_last_config(path: Path | None = None) -> dict | None:
     except Exception as e:
         log.warning(f"加载上次配置 {path} 失败: {e}，忽略")
         return None
+
+
+def load_history(path: Path | None = None) -> list[dict]:
+    """Load history entries, return [] if corrupt or missing."""
+    path = path or HISTORY_PATH
+    if not path.exists():
+        return []
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict) or data.get("version") != 1:
+            return []
+        entries = data.get("entries")
+        if not isinstance(entries, list):
+            return []
+        return entries
+    except (json.JSONDecodeError, PermissionError, OSError) as e:
+        log.warning(f"Failed to load history: {e}")
+        return []
+
+
+def save_history_entry(
+    selected_snapshot: list[dict],
+    preview: str,
+    config_path: Path | None = None,
+) -> None:
+    """Insert new entry at head, cap at HISTORY_MAX."""
+    path = config_path or HISTORY_PATH
+    entries = load_history(path)
+    existing_data = {}
+    if path.exists():
+        try:
+            with open(path, encoding="utf-8") as f:
+                existing_data = json.load(f)
+        except Exception:
+            pass
+
+    next_id = existing_data.get("next_id", 1)
+    for entry in entries:
+        if entry.get("id", 0) >= next_id:
+            next_id = entry["id"] + 1
+
+    new_entry = {
+        "id": next_id,
+        "saved_at": datetime.now(timezone.utc).isoformat(),
+        "preview": preview,
+        "selected": selected_snapshot,
+    }
+    entries.insert(0, new_entry)
+    if len(entries) > HISTORY_MAX:
+        entries = entries[:HISTORY_MAX]
+
+    data = {"version": 1, "entries": entries, "next_id": next_id + 1}
+    try:
+        ensure_config_dir()
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except (PermissionError, OSError) as e:
+        raise ConfigError(f"Cannot write history {path}: {e}") from e
+
+
+def _migrate_last_config_to_history(
+    last_path: Path | None = None,
+    hist_path: Path | None = None,
+) -> list[dict] | None:
+    """Migrate old last_config.json to history.json. Returns migrated entries."""
+    last = load_last_config(last_path)
+    if not last:
+        return None
+    preview_items = []
+    for item in last.get("selected", []):
+        f = item.get("flag", "")
+        v = item.get("value")
+        if v and v is not True:
+            preview_items.append(f"{f} {v}")
+        else:
+            preview_items.append(f)
+    preview = "claude " + " ".join(preview_items)
+    save_history_entry(last["selected"], preview, hist_path)
+    (last_path or LAST_CONFIG_PATH).unlink(missing_ok=True)
+    return load_history(hist_path)
+
+
+def history_mode_for_terminal(
+    user_setting: str | None,
+    term_lines: int,
+) -> str:
+    """Determine history display mode A/B."""
+    if user_setting in ("A", "B"):
+        return user_setting
+    used = 7  # title + separator + status + interaction
+    available = term_lines - used
+    if available < 10:
+        return "B"
+    return "A"
 
 
 # 模块加载时自动迁移旧配置
