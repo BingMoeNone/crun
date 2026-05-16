@@ -653,14 +653,16 @@ def run_app(prefs) -> list[str] | None:
                         print(f"  {num}. {preview}  ({ts})")
                     print()
                     prompt = (
-                        f"输入编号 (1-{n}, 默认 按 Enter 选 1):"
+                        f"输入编号 (1-{n}, 默认 按 Enter 选 1) 或 输入 q 取消:"
                         if lang == "zh" else
-                        f"Enter number (1-{n}, Enter for 1):"
+                        f"Enter number (1-{n}, Enter for 1) or q to cancel:"
                     )
                     val = questionary.text(prompt, default="1", style=_Q_STYLE).ask()
                     if val is None:
                         continue
                     val = val.strip()
+                    if val.lower() == "q":
+                        continue
                     if val == "":
                         chosen_idx = 0
                     else:
