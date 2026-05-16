@@ -14,10 +14,8 @@ jobs:
         include:
           - arch: amd64
             runs-on: ubuntu-24.04
-            docker_image: ubuntu:20.04
           - arch: arm64
             runs-on: ubuntu-24.04-arm
-            docker_image: arm64v8/ubuntu:20.04
     runs-on: ${{ matrix.runs-on }}
     permissions:
       contents: read
@@ -25,30 +23,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build binary (Docker · glibc 2.31)
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+
+      # Use uv-managed Python (built on CentOS 7, glibc 2.17 compatible)
+      - name: Install Python via uv
+        run: uv python install 3.12
+
+      - name: Sync dependencies
+        run: uv sync --all-groups
+
+      - name: Build binary
         run: |
-          docker run --rm \
-            -v "${{ github.workspace }}":/workspace \
-            -w /workspace \
-            "${{ matrix.docker_image }}" \
-            bash -exc "
-              export DEBIAN_FRONTEND=noninteractive
-              apt-get update && apt-get install -y software-properties-common
-              add-apt-repository -y ppa:deadsnakes/ppa
-              apt-get install -y python3.12 python3.12-venv
-
-              python3.12 -m venv /opt/venv
-              . /opt/venv/bin/activate
-              pip install --upgrade pip
-              pip install uv
-
-              uv sync --all-groups
-              uv run pyinstaller --onefile \
-                --name crun \
-                --paths src \
-                --add-data 'data/flags_default.json:data' \
-                src/claude_run/__main__.py
-            "
+          uv run pyinstaller --onefile \
+            --name crun \
+            --paths src \
+            --add-data "data/flags_default.json:data" \
+            src/claude_run/__main__.py
 
       - name: Rename and checksum
         run: |
