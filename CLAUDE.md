@@ -95,7 +95,7 @@ __main__.main()
 |--------|------|
 | 0 | 成功执行 claude（进程被替换，实际不会返回） |
 | 1 | 用户取消 / 正常退出 |
-| 2 | 配置错误（无法读写 ~/.config/claude-run/） |
+| 2 | 配置错误（无法读写 ~/.config/crun/） |
 | 3 | 参数加载错误（flags_default.json 损坏或缺失） |
 | 4 | 执行错误（claude 命令未找到或权限不足） |
 | 5 | 其他未知错误 |
@@ -103,7 +103,7 @@ __main__.main()
 ## 配置目录 / Config Directory
 
 ```
-~/.config/claude-run/
+~/.config/crun/
 ├── preferences.json    # 用户偏好（search_mode, language, first_run）
 ├── flags_custom.json   # 用户自定义参数（覆盖 default）
 ├── flags_default.json  # 默认参数（内置，只读，打包时嵌入）
