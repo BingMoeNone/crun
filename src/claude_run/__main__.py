@@ -2,11 +2,17 @@
 import os
 import sys
 import logging
+from importlib.metadata import version, PackageNotFoundError
 
 from claude_run.config import load_preferences, is_first_run, Preferences, ConfigError
 from claude_run.wizard import run_wizard
 from claude_run.app import run_app
 from claude_run.runner import execute_claude, ExecuteError
+
+try:
+    __version__ = version("crun")
+except PackageNotFoundError:
+    __version__ = "unknown"
 
 log = logging.getLogger(__name__)
 
@@ -50,6 +56,10 @@ def main() -> int:
     4 - 执行错误
     5 - 其他未知错误
     """
+    if "--version" in sys.argv or "-V" in sys.argv:
+        print(f"crun {__version__}")
+        return 0
+
     setup_logging()
     print_logo()
 

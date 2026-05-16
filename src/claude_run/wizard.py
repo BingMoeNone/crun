@@ -13,7 +13,7 @@ def run_wizard(prefs: Preferences) -> Preferences:
             questionary.Choice("A · 模糊搜索（输入关键字过滤）", value="A"),
             questionary.Choice("B · 按分组浏览", value="B"),
         ],
-        default=questionary.Choice("A · 模糊搜索（输入关键字过滤）", value="A"),
+        default="A",
     ).ask()
 
     if search_mode is None:
@@ -25,7 +25,7 @@ def run_wizard(prefs: Preferences) -> Preferences:
             questionary.Choice("中文", value="zh"),
             questionary.Choice("English", value="en"),
         ],
-        default=questionary.Choice("中文", value="zh"),
+        default="zh",
     ).ask()
 
     if lang is None:

@@ -37,24 +37,24 @@ jobs:
       - name: Build binary
         run: |
           uv run pyinstaller --onefile \
-            --name claude-run \
+            --name crun \
             --paths src \
             --add-data "data/flags_default.json:data" \
             src/claude_run/__main__.py
 
       - name: Rename and checksum
         run: |
-          cp dist/claude-run dist/claude-run-linux-${{ matrix.arch }}
+          cp dist/crun dist/crun-linux-${{ matrix.arch }}
           cd dist
-          sha256sum claude-run-linux-${{ matrix.arch }} > claude-run-linux-${{ matrix.arch }}.sha256
+          sha256sum crun-linux-${{ matrix.arch }} > crun-linux-${{ matrix.arch }}.sha256
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: claude-run-linux-${{ matrix.arch }}
+          name: crun-linux-${{ matrix.arch }}
           path: |
-            dist/claude-run-linux-${{ matrix.arch }}
-            dist/claude-run-linux-${{ matrix.arch }}.sha256
+            dist/crun-linux-${{ matrix.arch }}
+            dist/crun-linux-${{ matrix.arch }}.sha256
 
   release:
     needs: build
@@ -71,15 +71,15 @@ jobs:
       - name: Generate combined checksums
         run: |
           cd dist
-          sha256sum claude-run-linux-amd64 claude-run-linux-arm64 > SHA256SUMS
+          sha256sum crun-linux-amd64 crun-linux-arm64 > SHA256SUMS
 
       - name: Publish release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/claude-run-linux-amd64
-            dist/claude-run-linux-amd64.sha256
-            dist/claude-run-linux-arm64
-            dist/claude-run-linux-arm64.sha256
+            dist/crun-linux-amd64
+            dist/crun-linux-amd64.sha256
+            dist/crun-linux-arm64
+            dist/crun-linux-arm64.sha256
             dist/SHA256SUMS
           generate_release_notes: true

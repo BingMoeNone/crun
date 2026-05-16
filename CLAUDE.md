@@ -112,6 +112,8 @@ __main__.main()
 
 ## 参数 JSON 结构 / Flag JSON Structure
 
+`data/flags_default.json`（71 个 flag）+ 用户可选 `~/.config/crun/flags_custom.json`。
+
 每个参数定义：
 ```json
 {
@@ -120,9 +122,19 @@ __main__.main()
   "required_args": [{ "name": "arg", "label": {...}, "placeholder": {...} }],
   "type": "single | multi | value",
   "group": "分组名",
-  "choices": [{ "value": "val", "label": {...} }]
+  "choices": [{ "value": "val", "label": {...} }],
+  "conflicts_with": ["--other-flag"]
 }
 ```
+
+`conflicts_with` 为可选字段，列出互斥的 flag 名称。目前互斥对：
+- `--chrome` ↔ `--no-chrome`
+- `--system-prompt` ↔ `--system-prompt-file`
+
+互斥逻辑在 3 处执行：
+1. **TUI toggle**（`app.py:_toggle()`）：勾选时自动取消冲突项
+2. **TUI value_state 清理**（`app.py:run_app()`）：取消勾选时一并清理其 value_state
+3. **历史配置清洗**（`app.py:_sanitize_last_config()`）：恢复历史配置时防御性去重
 
 ## 预设分组 / Preset Groups
 
@@ -144,6 +156,18 @@ __main__.main()
 | `limit` | 限制 | value |
 | `config` | 配置 | value |
 
+## 配置迁移 / Config Migration
+
+`config.py` 模块加载时自动执行 `_migrate_old_config()`：
+- 旧路径 `~/.config/claude-run/` 存在且新路径 `~/.config/crun/` 不存在 → `Path.rename()` 迁移
+- 两者都存在 → 使用新路径，旧路径保留不删
+- 仅新路径存在 → 正常使用
+- 迁移失败（权限等）→ 静默 warning，不影响后续运行
+
+## questionary 注意事项
+
+`questionary.select()` 的 `default` 参数必须传 **value 字符串**（如 `"A"`），不能传 `questionary.Choice` 对象。后者会触发 `ValueError: Invalid initial_choice value passed`。
+
 ## 重要笔记 / Important Notes
 
 - `execute_claude()` 使用 `os.execvp()` 替换当前进程，不返回
@@ -154,3 +178,7 @@ __main__.main()
 - **历史复用**：执行成功后 `save_last_config()` 保存配置；下次未勾选任何参数时就执行时，`_sanitize_last_config()` 会清洗并提示复用历史配置（自动丢弃已失效的 flag/choice）
 - 设置 `DEBUG` 环境变量可启用调试日志（`logging.DEBUG`）
 - CI 通过 `.github/workflows/release-linux.yml` 自动发布 Linux amd64/arm64 二进制
+- `scripts/install.sh`：curl 安装脚本，环境变量 `CRUN_REPO` / `CRUN_VERSION` / `CRUN_INSTALL_DIR`
+- 设计文档：`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
+- 实现计划：`docs/superpowers/plans/YYYY-MM-DD-<topic>.md`
+- 变更项目名或二进制名时，需同步更新：`CLAUDE.md`、`README.md`、`pyproject.toml`、`scripts/install.sh`、`.github/workflows/release-linux.yml`、`src/claude_run/config.py`
