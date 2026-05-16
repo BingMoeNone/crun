@@ -4,9 +4,9 @@
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux-blue?style=flat-square&logo=linux&logoColor=white)](https://github.com/BingMoeNone/claude-run)
 
-`crun` 是一个 Linux CLI 工具，通过 TUI 交互界面选择 Claude Code 的 71 个启动参数（15 个分组），然后执行 `claude <flags>`。支持模糊搜索、参数互斥、历史配置复用。
+`crun` 是一个 Linux CLI 工具，通过 TUI 交互界面选择 Claude Code 的 71 个启动参数（15 个分组），然后执行 `claude <flags>`。支持拼音模糊搜索、搜索字符高亮、参数互斥、9 条命令历史（A/B 自适应方案）、参数预设、参数使用提示和自定义快捷键。
 
-`crun` is a Linux CLI TUI tool for selecting from 71 Claude Code startup flags (15 groups) and launching `claude <flags>`. Supports fuzzy search, flag mutual exclusion, and config reuse.
+`crun` is a Linux CLI TUI tool for selecting from 71 Claude Code startup flags (15 groups) and launching `claude <flags>`. Supports pinyin fuzzy search, search match highlighting, flag mutual exclusion, 9-entry command history (A/B adaptive), parameter presets, tooltips, and custom keybindings.
 
 ---
 
@@ -16,10 +16,15 @@
 
 - **全量参数选择界面**：71 个 Claude Code CLI 参数，15 个分组
 - **`/` 即时搜索**：在选择界面输入 `/` 进入搜索模式，`Esc` 退出搜索
+- **拼音模糊搜索**：输入拼音（如 `moxing`）即可匹配中文描述（如「模型」），支持全拼和部分拼音
+- **搜索字符高亮**：搜索结果中匹配的字符以黄色加粗高亮，帮助理解匹配原因
 - **中英双语搜索**：可通过 flag 名、中文描述、英文描述、子选项（choices）的值/标签搜索
 - **参数互斥**：自动处理互斥 flag（如 `--chrome` ↔ `--no-chrome`），勾选一方自动取消另一方
 - **子参数即时追问**：勾选 `single` / `value` 参数后立即弹出子菜单或输入框
-- **历史配置复用**：当本次未选择参数就执行时，会提示是否使用上次配置
+- **参数使用提示**：光标停留时底部显示参数详细说明（优先 JSON 自定义提示，自动生成兜底）
+- **命令历史**：保存最近 9 次执行记录（环形缓冲），大终端显示编号列表，小终端显示精简预览，支持数字一键复用
+- **参数预设**：支持将当前选择保存为命名预设方案，一键加载切换不同使用场景（如「开发模式」「审查模式」）
+- **自定义快捷键**：支持在 `preferences.json` 中自定义键位映射，启动时自动冲突检测并警告
 - **可自定义参数**：支持 `~/.config/crun/flags_custom.json` 覆盖或扩展默认参数
 - **多语言界面**：首次运行向导支持中文/English
 
@@ -74,6 +79,9 @@ uv run crun
 | `Backspace` | 删除搜索字符（搜索模式） |
 | `Esc` | 退出搜索模式；非搜索模式下退出选择器 |
 | `Ctrl+C` | 取消退出 |
+| `Ctrl+D` / `Ctrl+U` | 上下翻页（Vim 方案附加） |
+
+> 支持在 `preferences.json` 的 `keybindings` 字段中自定义键位映射。启动时如有冲突会自动警告。
 
 ### 参数互斥机制
 
@@ -81,30 +89,42 @@ uv run crun
 
 历史配置复用和最终命令行构建阶段也有相应的互斥防御。
 
-### 历史配置机制
+### 命令历史
 
-执行成功后会保存最近一次配置到：
+执行成功后会保存到环形缓冲（最近 9 次）中：
 
-- `~/.config/crun/last_config.json`
+- `~/.config/crun/history.json`
 
-当你在选择界面没有勾选任何参数就选择执行时：
+当你在选择界面没有勾选任何参数就选择执行时，程序自动展示历史记录，根据终端大小自适应选择展示方案：
 
-1. 程序会读取上次配置
-2. 展示可用的上次命令预览
-3. 让你选择：
-   - 使用上次配置
-   - 重新选择
-   - 取消退出
+**方案 A（大终端 — 剩余空间 ≥ 10 行）：** 显示带编号的完整列表，输入数字选择第 N 条（默认回车选 1 = 上次），输入 `q` 取消。
+
+**方案 B（小终端 — 剩余空间 < 10 行）：** 显示精简预览（仅最新一条），提供菜单：
+- 使用上次（Enter）— 快速复用
+- 更多历史 — 展开完整编号列表
+- 重新选择 — 回到参数选择界面
+
+用户可在 `preferences.json` 中设置 `history_mode: "A"` 或 `"B"` 固定展示方案。
 
 如果历史配置中包含已失效参数（如已删除 flag 或子选项变更），会自动忽略失效项。
+
+### 参数预设
+
+主菜单提供保存/加载预设功能：
+
+- **保存预设**：将当前选中的参数组合保存为命名预设 → `~/.config/crun/presets.json`
+- **加载预设**：从预设列表中选择加载，自动清洗失效参数，恢复勾选状态。同时支持删除预设（需二次确认）。
+- **覆盖保护**：保存时如同名预设已存在，会提示确认覆盖。
 
 ### 配置文件
 
 配置目录：`~/.config/crun/`
 
-- `preferences.json`：界面语言、首次运行状态等偏好
+- `preferences.json`：用户偏好（language, search_mode, history_mode, keybindings 等）
 - `flags_custom.json`：自定义参数定义（覆盖/扩展默认参数）
-- `last_config.json`：最近一次执行配置（自动生成）
+- `history.json`：最近 9 次执行记录（环形缓冲，自动保存/读取）
+- `presets.json`：用户保存的参数预设方案
+- `flags_default.json`：默认参数（内置，只读，打包时嵌入）
 
 ### 自定义参数示例
 
@@ -153,10 +173,15 @@ uv run pyinstaller --onefile --name crun --paths src --add-data "data/flags_defa
 
 - **71 CLI flags** across 15 groups, matching the full Claude Code CLI reference
 - **`/` live search** in selector, `Esc` to leave search
+- **Pinyin fuzzy search**: type pinyin (e.g. "moxing") to match Chinese descriptions (e.g. "模型"), supports full and partial pinyin
+- **Search character highlighting**: matched characters are highlighted in yellow bold, aiding match comprehension
 - **Bilingual matching** across flag name, Chinese/English description, and choice labels/values
 - **Mutual exclusion** for conflicting flags (e.g. `--chrome` ↔ `--no-chrome`), auto-deselected in TUI
 - **Immediate sub-argument prompts** for `single` and `value` flags
-- **Last-config reuse** when running with no current selection
+- **Parameter tooltips**: cursor-focused flag shows detailed usage tip at screen bottom (JSON-defined tip first, auto-generated from metadata)
+- **Command history**: 9-entry ring buffer, adaptive A/B display (numbered list on large terminals, compact preview on small), number selection for instant reuse
+- **Parameter presets**: save current selection as named preset, one-click load for different scenarios (e.g. "dev mode", "review mode")
+- **Custom keybindings**: configurable keymap in `preferences.json`, automatic conflict detection and warning at startup
 - **Custom flag extension** via `~/.config/crun/flags_custom.json`
 - **Bilingual UI** with first-run wizard (Chinese / English)
 
@@ -211,32 +236,50 @@ uv run crun
 | `Backspace` | Delete search char (in search mode) |
 | `Esc` | Exit search mode; quit selector when not searching |
 | `Ctrl+C` | Cancel |
+| `Ctrl+D` / `Ctrl+U` | Page up/down (Vim scheme) |
+
+> Custom keybindings can be configured via `keybindings` field in `preferences.json`. Conflicts are detected and warned at startup.
 
 ### Flag Mutual Exclusion
 
 Some flags conflict with each other (e.g. `--chrome` vs `--no-chrome`, `--system-prompt` vs `--system-prompt-file`). The TUI auto-deselects conflicting flags when you toggle one on. This defense also applies during history reuse and final CLI construction.
 
-### Last Configuration
+### Command History
 
-After a confirmed run, the latest selection is saved to:
+After a confirmed run, the selection is saved to a 9-entry ring buffer:
 
-- `~/.config/crun/last_config.json`
+- `~/.config/crun/history.json`
 
-If you attempt to run with no current selection, `crun` can:
+If you attempt to run with no current selection, `crun` automatically displays history with adaptive layout:
 
-1. Load last config
-2. Show command preview
-3. Let you choose to reuse / reselect / cancel
+**Mode A (large terminal — ≥10 free lines):** Full numbered list with timestamps, enter number to select (default Enter = 1 = last), `q` to cancel.
 
-Stale entries in history are automatically filtered out.
+**Mode B (small terminal — <10 free lines):** Compact preview (latest only) with menu:
+- Use last (Enter) — quick reuse
+- More history — expands to full numbered list
+- Reselect — return to flag selector
+
+Set `history_mode: "A"` or `"B"` in `preferences.json` to lock a specific mode.
+
+Stale entries (deleted flags, changed choices) are automatically filtered out on load.
+
+### Parameter Presets
+
+Main menu provides save/load preset functionality:
+
+- **Save Preset**: save current flag selection as a named preset → `~/.config/crun/presets.json`
+- **Load Preset**: select from preset list, auto-cleanse stale items, restore checked state. Delete with confirmation.
+- **Overwrite protection**: prompts for confirmation if preset name already exists.
 
 ### Configuration Files
 
 Directory: `~/.config/crun/`
 
-- `preferences.json` — user preferences
+- `preferences.json` — user preferences (language, search_mode, history_mode, keybindings, etc.)
 - `flags_custom.json` — custom/override flag definitions
-- `last_config.json` — auto-saved latest configuration
+- `history.json` — 9 most recent runs (ring buffer, auto-saved)
+- `presets.json` — user-saved parameter presets
+- `flags_default.json` — built-in default flags (read-only, embedded in binary)
 
 ### Development & Test
 
