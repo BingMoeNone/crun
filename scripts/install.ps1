@@ -36,6 +36,7 @@ Examples:
   exit 0
 }
 
+function Main {
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
@@ -50,7 +51,7 @@ $DebugMode = [bool]($env:DEBUG -eq "1" -or $env:DEBUG -eq "true")
 function info($msg)  { Write-Host "  ${CYAN}->${NC} $msg" }
 function ok($msg)    { Write-Host "  ${GREEN}+${NC} $msg" }
 function warn($msg)  { Write-Host "  ${YELLOW}!${NC} $msg" }
-function err($msg)   { Write-Host "  ERROR: $msg" -ForegroundColor Red; exit 1 }
+function err($msg)   { Write-Host "  ERROR: $msg" -ForegroundColor Red; throw $msg }
 function debug($msg) { if ($DebugMode) { Write-Host "  [DEBUG] $msg" -ForegroundColor DarkGray } }
 
 # ── Platform check ─────────────────────────────────────────────────────────
@@ -221,7 +222,7 @@ if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
 if ($env:Path -like "*$InstallDir*") {
   ok "crun is ready, type 'crun' to start"
   Write-Host ""
-  exit 0
+  return
 }
 
 warn "$InstallDir is not in PATH"
@@ -263,3 +264,5 @@ Write-Host ""
   # Cleanup — guaranteed to run on any exit path (success, error, Ctrl+C)
   Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
 }
+}
+Main
