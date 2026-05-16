@@ -126,6 +126,7 @@ __main__.main()
 | 3 | 参数加载错误（flags_default.json 损坏或缺失） |
 | 4 | 执行错误（claude 命令未找到或权限不足） |
 | 5 | 其他未知错误 |
+| 6 | 不支持的终端（Windows conhost 拒绝运行，需 Windows Terminal） |
 
 ## 配置目录 / Config Directory
 

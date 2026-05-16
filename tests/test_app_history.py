@@ -97,13 +97,16 @@ def test_check_windows_terminal_in_wt(monkeypatch, capsys):
 
 
 def test_check_windows_terminal_in_conhost(monkeypatch, capsys):
-    """Prints notice when not in Windows Terminal."""
+    """Exits with code 6 when not in Windows Terminal."""
     import platform as pt
+    import pytest
     monkeypatch.setattr(pt, "system", lambda: "Windows")
     monkeypatch.delenv("WT_SESSION", raising=False)
     monkeypatch.delenv("TERM_PROGRAM", raising=False)
     from claude_run.__main__ import _check_windows_terminal
-    _check_windows_terminal()
+    with pytest.raises(SystemExit) as exc_info:
+        _check_windows_terminal()
+    assert exc_info.value.code == 6
     captured = capsys.readouterr()
     assert "Windows Terminal" in captured.out
     assert "aka.ms/terminal" in captured.out

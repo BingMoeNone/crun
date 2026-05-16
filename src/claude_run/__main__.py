@@ -66,23 +66,27 @@ def print_logo() -> None:
 
 
 def _check_windows_terminal() -> None:
-    """On Windows, detect conhost and guide user to Windows Terminal."""
+    """On Windows, refuse to run in classic console host (conhost).
+
+    crun's TUI relies on ANSI/VT escape sequences that conhost cannot
+    render correctly. Windows Terminal is required.
+    """
     if platform.system() != "Windows":
         return
     if os.environ.get("WT_SESSION") or os.environ.get("TERM_PROGRAM"):
         return
     print("=" * 60)
-    print("  NOTICE: Better experience with Windows Terminal")
+    print("  ERROR: Unsupported terminal")
     print()
-    print("  This tool uses Unicode symbols and color styles that")
-    print("  may not display correctly in the classic console host.")
+    print("  crun requires Windows Terminal. The classic PowerShell")
+    print("  console (conhost) cannot render the TUI correctly.")
     print()
-    print("  Recommended: Install Windows Terminal from Microsoft Store")
+    print("  Install Windows Terminal:")
     print("  https://aka.ms/terminal")
     print()
     print("  Then run: wt crun")
     print("=" * 60)
-    print()
+    sys.exit(6)
 
 
 def _validate_upgrade_configs() -> None:
