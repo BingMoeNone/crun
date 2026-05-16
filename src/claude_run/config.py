@@ -6,9 +6,24 @@ import logging
 
 log = logging.getLogger(__name__)
 
-CONFIG_DIR = Path.home() / ".config" / "claude-run"
+CONFIG_DIR = Path.home() / ".config" / "crun"
+OLD_CONFIG_DIR = Path.home() / ".config" / "claude-run"
 PREFERENCES_PATH = CONFIG_DIR / "preferences.json"
 LAST_CONFIG_PATH = CONFIG_DIR / "last_config.json"
+
+
+def _migrate_old_config() -> None:
+    """将旧配置目录迁移到新路径。"""
+    if not OLD_CONFIG_DIR.exists():
+        return
+    if CONFIG_DIR.exists():
+        log.info(f"新旧配置目录均存在，使用新路径 {CONFIG_DIR}，旧路径忽略")
+        return
+    try:
+        OLD_CONFIG_DIR.rename(CONFIG_DIR)
+        log.info(f"配置已从 {OLD_CONFIG_DIR} 迁移到 {CONFIG_DIR}")
+    except OSError as e:
+        log.warning(f"配置迁移失败: {e}")
 
 
 class ConfigError(Exception):
@@ -139,3 +154,7 @@ def load_last_config(path: Path | None = None) -> dict | None:
     except Exception as e:
         log.warning(f"加载上次配置 {path} 失败: {e}，忽略")
         return None
+
+
+# 模块加载时自动迁移旧配置
+_migrate_old_config()

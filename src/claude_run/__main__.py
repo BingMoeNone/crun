@@ -73,7 +73,7 @@ def main() -> int:
 
     except ConfigError as e:
         print(f"\n❌ 配置错误: {e}", file=sys.stderr)
-        print("请检查 ~/.config/claude-run/ 目录权限。", file=sys.stderr)
+        print("请检查 ~/.config/crun/ 目录权限。", file=sys.stderr)
         return 2
 
     except KeyboardInterrupt:
