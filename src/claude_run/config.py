@@ -4,10 +4,22 @@ from datetime import datetime, timezone
 from pathlib import Path
 import json
 import logging
+import os
+import platform
 
 log = logging.getLogger(__name__)
 
-CONFIG_DIR = Path.home() / ".config" / "crun"
+def _default_config_dir() -> Path:
+    """Return the platform-appropriate config directory."""
+    if platform.system() == "Windows":
+        localappdata = os.environ.get("LOCALAPPDATA", "")
+        if localappdata:
+            return Path(localappdata) / "crun"
+        return Path.home() / "AppData" / "Local" / "crun"
+    return Path.home() / ".config" / "crun"
+
+
+CONFIG_DIR = _default_config_dir()
 OLD_CONFIG_DIR = Path.home() / ".config" / "claude-run"
 PREFERENCES_PATH = CONFIG_DIR / "preferences.json"
 LAST_CONFIG_PATH = CONFIG_DIR / "last_config.json"

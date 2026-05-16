@@ -408,3 +408,36 @@ def test_load_history_way_too_new_returns_empty():
         )
         entries = load_history(path)
         assert entries == []
+
+
+# ── Platform config directory tests ────────────────────────────────────────────
+
+def test_platform_config_dir_linux(monkeypatch):
+    import platform as pt
+    monkeypatch.setattr(pt, "system", lambda: "Linux")
+    from claude_run.config import _default_config_dir
+    p = _default_config_dir()
+    assert p == Path.home() / ".config" / "crun"
+
+
+def test_platform_config_dir_windows_with_localappdata(monkeypatch):
+    import platform as pt
+    import os as _os
+    monkeypatch.setattr(pt, "system", lambda: "Windows")
+    monkeypatch.setenv("LOCALAPPDATA", "C:\\Users\\test\\AppData\\Local")
+    from claude_run.config import _default_config_dir
+    p = _default_config_dir()
+    # Compare as string: on Linux Path uses /, on Windows it uses \.
+    assert str(p) == str(Path("C:\\Users\\test\\AppData\\Local") / "crun")
+
+
+def test_platform_config_dir_windows_no_localappdata(monkeypatch):
+    import platform as pt
+    import os as _os
+    monkeypatch.setattr(pt, "system", lambda: "Windows")
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.setattr(Path, "home", lambda: Path("C:\\Users\\test"))
+    from claude_run.config import _default_config_dir
+    p = _default_config_dir()
+    # Compare as string: on Linux Path uses /, on Windows it uses \.
+    assert str(p) == str(Path("C:\\Users\\test") / "AppData" / "Local" / "crun")
