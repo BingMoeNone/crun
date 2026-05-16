@@ -41,10 +41,11 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # ── Helpers ───────────────────────────────────────────────────────────────
-[string]$GREEN  = "`e[0;32m"
-[string]$YELLOW = "`e[1;33m"
-[string]$CYAN   = "`e[0;36m"
-[string]$NC     = "`e[0m"
+$esc = [char]27
+[string]$GREEN  = "$esc[0;32m"
+[string]$YELLOW = "$esc[1;33m"
+[string]$CYAN   = "$esc[0;36m"
+[string]$NC     = "$esc[0m"
 
 $DebugMode = [bool]($env:DEBUG -eq "1" -or $env:DEBUG -eq "true")
 
@@ -130,7 +131,7 @@ Write-Host "  URL: $BinaryUrl"
 Write-Host "  Size: ~12MB, please wait..."
 
 try {
-  Invoke-WebRequest -Uri $BinaryUrl -OutFile $dlPath -UseBasicParsing -MaximumRetryCount 3 -RetryIntervalSec 5
+  Invoke-WebRequest -Uri $BinaryUrl -OutFile $dlPath -UseBasicParsing
 } catch {
   Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
   err @"
