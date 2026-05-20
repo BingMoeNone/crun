@@ -36,7 +36,7 @@ uv add --dev <package>
 
 # 本地打包二进制
 uv sync --all-groups
-uv run pyinstaller --onefile --name crun --paths src --add-data "data/flags_default.json:data" --copy-metadata crun src/claude_run/__main__.py
+uv run pyinstaller --onefile --name crun --paths src --add-data "data/flags_default.json:data" --add-data "pyproject.toml:." --copy-metadata crun src/claude_run/__main__.py
 # 输出: dist/crun
 
 # 开启调试日志
@@ -55,7 +55,7 @@ uv run pytest tests/ -v -m "not integration"
 
 # Windows 本地打包 (分隔符为 ; 非 :)
 uv sync --all-groups
-uv run pyinstaller --onefile --name crun --paths src --add-data "data/flags_default.json;data" --copy-metadata crun --console src/claude_run/__main__.py
+uv run pyinstaller --onefile --name crun --paths src --add-data "data/flags_default.json;data" --add-data "pyproject.toml;." --copy-metadata crun --console src/claude_run/__main__.py
 # 输出: dist/crun.exe
 ```
 

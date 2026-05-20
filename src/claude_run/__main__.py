@@ -11,21 +11,47 @@ from claude_run.config import load_preferences, is_first_run, Preferences, Confi
 from claude_run.wizard import run_wizard
 from claude_run.app import run_app
 from claude_run.runner import execute_claude, ExecuteError
+from claude_run.version_check import check_version
 
-try:
-    __version__ = version("crun")
-except PackageNotFoundError:
-    __version__ = "unknown"
+def _resolve_version() -> str:
+    """Resolve version, preferring bundled pyproject.toml to avoid stale metadata."""
+    import tomllib
+    from pathlib import Path
+
+    # 1. PyInstaller bundle: read pyproject.toml directly (single source of truth)
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        bundled = Path(meipass) / "pyproject.toml"
+        if bundled.exists():
+            with open(bundled, "rb") as f:
+                return tomllib.load(f).get("project", {}).get("version", "unknown")
+
+    # 2. Installed package metadata
+    try:
+        return version("crun")
+    except PackageNotFoundError:
+        pass
+
+    # 3. Dev mode: read from source tree
+    src_pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    if src_pyproject.exists():
+        with open(src_pyproject, "rb") as f:
+            return tomllib.load(f).get("project", {}).get("version", "unknown")
+
+    return "unknown"
+
+
+__version__ = _resolve_version()
 
 log = logging.getLogger(__name__)
 
 _LOGO = r"""
-   ____  ____  _  _  ____
-  / ___)|  _ \| || ||  _ \
- | |    | |_| | || || |_| |
- | |    |  _ (| || ||  _ <
- | |___ | |_| | \__/ | |_| |
-  \____)|____/  \__/ |____/
+  ______ .______       __    __  .__   __.
+ /      ||   _  \     |  |  |  | |  \ |  |
+|  ,----'|  |_)  |    |  |  |  | |   \|  |
+|  |     |      /     |  |  |  | |  . `  |
+|  `----.|  |\  \----.|  `--'  | |  |\   |
+ \______|| _| `._____| \______/  |__| \__|
 """.strip("\n")
 
 
@@ -43,6 +69,17 @@ def print_help() -> None:
         "  https://github.com/BingNgeee/crun\n"
     )
     print(_HELP)
+
+
+def _print_version() -> None:
+    print(f"crun {__version__}")
+    try:
+        latest = check_version(__version__)
+        if latest:
+            print(f"Latest: {latest}")
+            print(f"https://github.com/BingMoeNone/crun/releases")
+    except Exception:
+        pass
 
 
 def setup_logging() -> None:
@@ -63,6 +100,16 @@ def print_logo() -> None:
     print(f"  v{__version__}")
     print("  by.BingMoe")
     print()
+
+    # Check for updates silently
+    try:
+        latest = check_version(__version__)
+        if latest:
+            print(f"  ⬆  New version available: {latest} (current: v{__version__})")
+            print(f"  https://github.com/BingMoeNone/crun/releases")
+            print()
+    except Exception:
+        pass  # never break startup for version check
 
 
 def _check_windows_terminal() -> None:
@@ -171,7 +218,7 @@ def main() -> int:
     5 - 其他未知错误
     """
     if "--version" in sys.argv or "-V" in sys.argv:
-        print(f"crun {__version__}")
+        _print_version()
         return 0
 
     if "--help" in sys.argv or "-h" in sys.argv:
