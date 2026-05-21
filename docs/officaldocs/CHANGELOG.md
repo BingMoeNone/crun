@@ -1,5 +1,7 @@
 # crun Changelog
 
+[中文文档](../README_zh.md) | [English README](../README.md)
+
 ## v0.6.0 (2026-05-21)
 
 ### 跨平台支持 / Cross-Platform

@@ -5,6 +5,7 @@
 """
 import os
 from datetime import datetime, timezone
+from typing import Any
 
 import questionary
 from questionary import Style as QStyle
@@ -21,6 +22,7 @@ from claude_run.search import search_flags, highlight_line
 from claude_run.runner import build_argv, validate_argv, SelectedFlag
 from claude_run.config import (
     ConfigError,
+    Preferences,
     load_history, save_history_entry, _migrate_last_config_to_history,
     history_mode_for_terminal,
     load_presets, save_preset, delete_preset,
@@ -138,7 +140,7 @@ def _run_selector(
 
     checked: set[str] = set(init_checked)
 
-    ctx = {
+    ctx: dict[str, Any] = {
         "cursor":    0,
         "viewport":  0,
         "in_search": False,
@@ -164,7 +166,7 @@ def _run_selector(
             ctx["viewport"] = c - viewport_h + 1
 
     # ── 渲染函数 ──────────────────────────────────────────────────────────────
-    def _render():
+    def _render() -> list[tuple[str, str]]:
         lines: list[tuple[str, str]] = []
 
         # 标题 / 搜索栏
@@ -465,7 +467,7 @@ def _sanitize_last_config(last_cfg: dict | None, flags: list[Flag]) -> tuple[lis
 
 # ── 主入口 ────────────────────────────────────────────────────────────────────
 
-def run_app(prefs) -> list[str] | None:
+def run_app(prefs: Preferences) -> list[str] | None:
     """主交互入口。返回 argv 列表，或 None 表示用户取消。"""
     try:
         flags = load_flags()
@@ -719,11 +721,19 @@ def run_app(prefs) -> list[str] | None:
                     print(f"  {num}. {preview}  ({ts})")
                 print()
                 prompt = (
-                    f"输入编号 (1-{n}, 默认 按 Enter 选 1) 或 输入 q 取消:"
+                    f"输入编号 (1-{n}, 回车选 1) 或输入 q 取消:"
                     if lang == "zh" else
                     f"Enter number (1-{n}, Enter for 1) or q to cancel:"
                 )
-                val = questionary.text(prompt, default="1", style=_Q_STYLE).ask()
+                val = questionary.text(
+                    prompt,
+                    validate=lambda t: (
+                        True if t.strip() == "" or t.strip().lower() == "q"
+                        or (t.strip().isdigit() and 1 <= int(t.strip()) <= n)
+                        else "编号无效" if lang == "zh" else "Invalid number"
+                    ),
+                    style=_Q_STYLE,
+                ).ask()
                 if val is None:
                     continue
                 val = val.strip()
@@ -774,11 +784,19 @@ def run_app(prefs) -> list[str] | None:
                         print(f"  {num}. {preview}  ({ts})")
                     print()
                     prompt = (
-                        f"输入编号 (1-{n}, 默认 按 Enter 选 1) 或 输入 q 取消:"
+                        f"输入编号 (1-{n}, 回车选 1) 或输入 q 取消:"
                         if lang == "zh" else
                         f"Enter number (1-{n}, Enter for 1) or q to cancel:"
                     )
-                    val = questionary.text(prompt, default="1", style=_Q_STYLE).ask()
+                    val = questionary.text(
+                        prompt,
+                        validate=lambda t: (
+                            True if t.strip() == "" or t.strip().lower() == "q"
+                            or (t.strip().isdigit() and 1 <= int(t.strip()) <= n)
+                            else "编号无效" if lang == "zh" else "Invalid number"
+                        ),
+                        style=_Q_STYLE,
+                    ).ask()
                     if val is None:
                         continue
                     val = val.strip()

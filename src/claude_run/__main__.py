@@ -66,7 +66,7 @@ def print_help() -> None:
         "  crun --help, -h         Show this help and exit\n"
         "\n"
         "For more information, visit:\n"
-        "  https://github.com/BingNgeee/crun\n"
+        "  https://github.com/BingMoeNone/crun\n"
     )
     print(_HELP)
 

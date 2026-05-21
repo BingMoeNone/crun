@@ -109,6 +109,7 @@ name = "crun"
 version = "0.6.1"
 source = { editable = "." }
 dependencies = [
+    { name = "prompt-toolkit" },
     { name = "pypinyin" },
     { name = "questionary" },
 ]
@@ -124,6 +125,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "prompt-toolkit", specifier = ">=3.0.0" },
     { name = "pypinyin", specifier = ">=0.51.0" },
     { name = "questionary", specifier = ">=2.1.1" },
 ]

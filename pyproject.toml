@@ -1,10 +1,11 @@
 [project]
 name = "crun"
-version = "0.6.1"
+version = "0.6.2"
 description = "A cross-platform CLI tool with TUI for selecting Claude Code startup flags"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "prompt-toolkit>=3.0.0",
     "questionary>=2.1.1",
     "pypinyin>=0.51.0",
 ]

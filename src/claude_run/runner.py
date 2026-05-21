@@ -34,6 +34,18 @@ def build_argv(selected: Sequence[SelectedFlag]) -> list[str]:
     return argv
 
 
+def _resolve_exe(exe: str) -> str | None:
+    """Resolve an executable path, handling Windows PATHEXT (.cmd/.bat wrappers)."""
+    from shutil import which
+    resolved = which(exe)
+    if resolved is None and platform.system() == "Windows":
+        for ext in os.environ.get("PATHEXT", ".EXE;.CMD;.BAT").split(";"):
+            resolved = which(exe + ext)
+            if resolved:
+                break
+    return resolved
+
+
 def validate_argv(argv: list[str]) -> tuple[bool, str]:
     """
     验证 argv 是否可执行。
@@ -42,19 +54,8 @@ def validate_argv(argv: list[str]) -> tuple[bool, str]:
     if not argv:
         return False, "参数列表为空"
 
-    exe = argv[0]
-
-    # Check command existence. On Windows, shutil.which may miss .cmd/.ps1
-    # wrappers (e.g. Claude Code installed via npm). Try common extensions first.
-    from shutil import which
-    resolved = which(exe)
-    if resolved is None and platform.system() == "Windows":
-        for ext in os.environ.get("PATHEXT", ".EXE;.CMD;.BAT").split(";"):
-            resolved = which(exe + ext)
-            if resolved:
-                break
-    if resolved is None:
-        return False, f"命令 '{exe}' 未安装或不在 PATH 中"
+    if _resolve_exe(argv[0]) is None:
+        return False, f"命令 '{argv[0]}' 未安装或不在 PATH 中"
 
     return True, ""
 
@@ -74,16 +75,7 @@ def execute_claude(argv: list[str]) -> None:
     exe = argv[0]
 
     if platform.system() == "Windows":
-        # Resolve the executable path first: Windows CreateProcess only
-        # appends .exe, but Claude Code is often claude.cmd (npm install).
-        # shutil.which handles PATHEXT correctly including .cmd/.bat.
-        from shutil import which
-        resolved = which(exe)
-        if resolved is None:
-            for ext in os.environ.get("PATHEXT", ".EXE;.CMD;.BAT").split(";"):
-                resolved = which(exe + ext)
-                if resolved:
-                    break
+        resolved = _resolve_exe(exe)
         if resolved:
             argv[0] = resolved
         try:

@@ -1,4 +1,5 @@
 """配置管理：用户偏好读写，带回退默认值。"""
+from collections.abc import Callable
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -217,15 +218,8 @@ def save_history_entry(
     """Insert new entry at head, cap at HISTORY_MAX."""
     path = config_path or HISTORY_PATH
     entries = load_history(path)
-    existing_data = {}
-    if path.exists():
-        try:
-            with open(path, encoding="utf-8") as f:
-                existing_data = json.load(f)
-        except Exception:
-            pass
 
-    next_id = existing_data.get("next_id", 1)
+    next_id = 1
     for entry in entries:
         if entry.get("id", 0) >= next_id:
             next_id = entry["id"] + 1
@@ -380,7 +374,7 @@ def _migrate_config_versions() -> None:
     # Register migrations here as version increases.
     # Example for future v1 → v2:
     #   _MIGRATIONS[("preferences", 1)] = _migrate_prefs_v1_to_v2
-    _MIGRATIONS: dict[tuple[str, int], callable] = {}
+    _MIGRATIONS: dict[tuple[str, int], Callable[[dict], dict]] = {}
 
     configs = [
         ("preferences", PREFERENCES_PATH),

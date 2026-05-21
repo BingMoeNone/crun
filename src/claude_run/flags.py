@@ -12,7 +12,17 @@ def _default_flags_path() -> Path:
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
         return Path(meipass) / "data" / "flags_default.json"
-    return Path(__file__).parent.parent.parent / "data" / "flags_default.json"
+    # Walk up from this file to find the project root dynamically
+    current = Path(__file__).resolve().parent
+    for _ in range(5):
+        candidate = current / "data" / "flags_default.json"
+        if candidate.exists():
+            return candidate
+        current = current.parent
+    raise FlagsLoadError(
+        "Cannot locate data/flags_default.json — "
+        "project structure may be corrupted"
+    )
 
 
 DEFAULT_FLAGS_PATH = _default_flags_path()

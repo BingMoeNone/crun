@@ -1,5 +1,7 @@
 # Contributing to crun
 
+[中文](CONTRIBUTING_zh.md)
+
 Thanks for your interest in contributing!
 
 ## Development Setup
