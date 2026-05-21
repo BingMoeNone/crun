@@ -23,7 +23,23 @@ warn()  { printf "  ${YELLOW}⚠${NC} %s\n" "$*" >&2; }
 err()   { printf "${RED}${BOLD}✗ Error:${NC} %s\n" "$*" >&2; exit 1; }
 debug() { if [[ "${DEBUG}" != "0" ]]; then printf "  ${CYAN}[DEBUG]${NC} %s\n" "$*"; fi }
 
+# 交互式询问：从 /dev/tty 读取（绕过 curl pipe 占用 stdin）
+read_confirm() {
+  local prompt="$1"
+  local answer
+  if [[ -t 0 ]]; then
+    read -r -p "$(printf "  ${CYAN}?${NC} ${prompt} [Y/n]: ")" answer
+  elif [[ -e /dev/tty ]]; then
+    read -r -p "$(printf "  ${CYAN}?${NC} ${prompt} [Y/n]: ")" answer < /dev/tty
+  else
+    echo "  (非交互模式，跳过)"
+    return 1
+  fi
+  [[ "${answer,,}" != "n" && "${answer,,}" != "no" ]]
+}
+
 # ── Parse args ─────────────────────────────────────────────────────────────────
+YES=false
 case "${1:-}" in
   -h|--help)
     echo "Usage: curl -fsSL <install-url> | bash"
@@ -34,11 +50,18 @@ case "${1:-}" in
     echo "  CRUN_INSTALL_DIR  install path (default: /usr/local/bin or ~/.local/bin)"
     echo "  DEBUG=1           enable verbose output"
     echo ""
+    echo "Options:"
+    echo "  -y, --yes         skip confirmation prompts"
+    echo ""
     echo "Examples:"
     echo "  curl -fsSL ... | bash                                # latest"
+    echo "  curl -fsSL ... | bash -s -- -y                       # latest, no prompts"
     echo "  CRUN_VERSION=v0.4.0 curl -fsSL ... | bash             # specific version"
     echo "  DEBUG=1 curl -fsSL ... | bash                         # debug mode"
     exit 0
+    ;;
+  -y|--yes)
+    YES=true
     ;;
 esac
 
@@ -64,6 +87,18 @@ done
 REPO="${CRUN_REPO:-BingMoeNone/crun}"
 VERSION="${CRUN_VERSION:-latest}"
 
+# Fetch the latest release tag from GitHub API (for version comparison).
+# Returns empty string on failure.
+fetch_latest_tag() {
+  local tag
+  tag="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null \
+    | grep -o '"tag_name": *"[^"]*"' | head -1 | cut -d'"' -f4)" || true
+  echo "${tag}"
+}
+
+# Strip leading 'v' from a version string for comparison.
+strip_v() { echo "${1#v}"; }
+
 echo ""
 printf "  ${BOLD}crun${NC} installer · ${CYAN}%s${NC} · %s\n" "${VERSION}" "${arch}"
 [[ "${DEBUG}" != "0" ]] && warn "DEBUG 模式已开启"
@@ -82,20 +117,66 @@ fi
 
 # ── Check existing installation ────────────────────────────────────────────────
 existing_version=""
+existing_ver_num=""
 is_upgrade=false
 if [[ -x "${INSTALL_DIR}/crun" ]]; then
   existing_version="$( "${INSTALL_DIR}/crun" --version 2>/dev/null || true )"
-  if [[ -n "${existing_version}" ]]; then
+  # Extract version number: "crun 0.5.4" → "0.5.4"
+  existing_ver_num="$(echo "${existing_version}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)" || true
+  if [[ -n "${existing_ver_num}" ]]; then
     is_upgrade=true
-    if [[ "${VERSION}" == "latest" ]]; then
-      info "已安装 ${existing_version}，检查更新..."
+  fi
+fi
+
+# Determine target version for comparison
+target_ver_num=""
+if [[ "${VERSION}" != "latest" ]]; then
+  target_ver_num="$(strip_v "${VERSION}")"
+else
+  info "正在检查最新版本..."
+  latest_tag="$(fetch_latest_tag)"
+  if [[ -n "${latest_tag}" ]]; then
+    target_ver_num="$(strip_v "${latest_tag}")"
+    debug "latest tag = ${latest_tag}, target_ver_num = ${target_ver_num}"
+  fi
+fi
+
+# ── Upgrade prompt ─────────────────────────────────────────────────────────────
+if ${is_upgrade}; then
+  # Same version detection
+  if [[ -n "${target_ver_num}" && -n "${existing_ver_num}" ]]; then
+    if [[ "${existing_ver_num}" == "${target_ver_num}" ]]; then
+      ok "已是最新版本 (v${existing_ver_num})"
+      if ! ${YES}; then
+        if ! read_confirm "是否重新安装？"; then
+          echo ""
+          info "已取消，未做任何更改。"
+          exit 0
+        fi
+      fi
+      echo ""
     else
-      if [[ "${existing_version}" == *"${VERSION}"* ]]; then
-        info "已安装 ${existing_version}，重新安装..."
-      else
-        info "已安装 ${existing_version} → 升级到 ${VERSION}..."
+      info "发现新版本: v${existing_ver_num} → v${target_ver_num}"
+      if ! ${YES}; then
+        if ! read_confirm "是否升级？"; then
+          echo ""
+          info "已取消，当前版本保持不变 (v${existing_ver_num})"
+          exit 0
+        fi
+      fi
+      echo ""
+    fi
+  else
+    # Can't determine versions, just confirm
+    info "已安装 ${existing_version:-未知版本}"
+    if ! ${YES}; then
+      if ! read_confirm "是否覆盖安装？"; then
+        echo ""
+        info "已取消，未做任何更改。"
+        exit 0
       fi
     fi
+    echo ""
   fi
 fi
 
@@ -186,12 +267,19 @@ if [[ -z "${installed_version}" ]]; then
   err "安装验证失败：二进制无法执行 (${INSTALL_DIR}/crun --version 无输出)"
 fi
 
+# Extract new version number
+new_ver_num="$(echo "${installed_version}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)" || true
+
 if ${is_upgrade}; then
   echo ""
-  if [[ "${installed_version}" == "${existing_version}" ]]; then
-    info "版本未变化: ${installed_version}"
+  if [[ -n "${new_ver_num}" && -n "${existing_ver_num}" ]]; then
+    if [[ "${new_ver_num}" == "${existing_ver_num}" ]]; then
+      ok "已重新安装: v${new_ver_num}"
+    else
+      ok "升级完成: v${existing_ver_num} → v${new_ver_num}"
+    fi
   else
-    ok "升级完成: ${existing_version} → ${installed_version}"
+    ok "安装完成: ${installed_version}"
   fi
 else
   echo ""
@@ -201,12 +289,17 @@ fi
 # ── Post-install ───────────────────────────────────────────────────────────────
 echo ""
 
-# Config preservation notice
+# Config preservation — installer only touches the binary, never ~/.config/crun/
 CONFIG_DIR="${HOME}/.config/crun"
 if ${is_upgrade}; then
   if [[ -d "${CONFIG_DIR}" ]]; then
-    ok "用户配置已保留: ${CONFIG_DIR}"
-    echo "  (偏好设置、历史记录、预设方案等保持不变)"
+    ok "用户数据完整保留: ${CONFIG_DIR}"
+    echo "  (偏好设置 · 历史记录 · 预设方案 · 自定义参数 均未修改)"
+  fi
+else
+  if [[ -d "${CONFIG_DIR}" ]]; then
+    info "检测到已有用户配置: ${CONFIG_DIR}"
+    echo "  安装不会覆盖任何配置文件。"
   fi
 fi
 
@@ -239,24 +332,6 @@ if [[ ":${PATH}:" == *":${INSTALL_DIR}:"* ]]; then
 fi
 
 warn "${INSTALL_DIR} 不在 PATH 中"
-
-# 交互式询问：从 /dev/tty 读取（绕过 curl pipe 占用 stdin）
-read_confirm() {
-  local prompt="$1"
-  local answer
-  if [[ -t 0 ]]; then
-    # stdin 是终端，直接读
-    read -r -p "$(printf "  ${CYAN}?${NC} ${prompt} [Y/n]: ")" answer
-  elif [[ -e /dev/tty ]]; then
-    # curl pipe 场景，从 /dev/tty 读取
-    read -r -p "$(printf "  ${CYAN}?${NC} ${prompt} [Y/n]: ")" answer < /dev/tty
-  else
-    # 非交互模式，直接返回 no
-    echo "  (非交互模式，跳过)"
-    return 1
-  fi
-  [[ "${answer,,}" != "n" && "${answer,,}" != "no" ]]
-}
 
 if read_confirm "是否自动将 ${INSTALL_DIR} 添加到 PATH (${SHELL_RC})?"; then
   echo ""

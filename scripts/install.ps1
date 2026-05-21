@@ -20,7 +20,9 @@ param(
   [string]$Arg1
 )
 
-# handle -h / --help
+$YesMode = $false
+
+# handle -h / --help / -y / --yes
 if ($Arg1 -eq '-h' -or $Arg1 -eq '--help') {
   Write-Host @"
 Usage: irm <install-url> | iex
@@ -29,11 +31,18 @@ Environment variables:
   CRUN_VERSION       version tag or 'latest' (default: latest)
   CRUN_INSTALL_DIR   install path (default: `$env:LOCALAPPDATA\Programs\crun)
   `$env:DEBUG=`$true  enable verbose output
+Options:
+  -y, --yes           skip confirmation prompts
 Examples:
   irm ... | iex                                     # latest
+  irm ... | iex -y                                  # latest, no prompts
   `$env:CRUN_VERSION='v0.4.0'; irm ... | iex         # specific version
 "@
   exit 0
+}
+
+if ($Arg1 -eq '-y' -or $Arg1 -eq '--yes') {
+  $YesMode = $true
 }
 
 function Main {
@@ -54,6 +63,36 @@ function ok($msg)    { Write-Host "  ${GREEN}+${NC} $msg" }
 function warn($msg)  { Write-Host "  ${YELLOW}!${NC} $msg" }
 function err($msg)   { Write-Host "  ERROR: $msg" -ForegroundColor Red; throw "Installation failed" }
 function debug($msg) { if ($DebugMode) { Write-Host "  [DEBUG] $msg" -ForegroundColor DarkGray } }
+
+# Interactive confirm
+function Confirm-User($prompt) {
+  try {
+    $choice = Read-Host "$prompt [Y/n]"
+    return ($choice -ne 'n' -and $choice -ne 'no')
+  } catch {
+    Write-Host "  (non-interactive, skipping)"
+    return $false
+  }
+}
+
+# Fetch latest release tag from GitHub API
+function Fetch-LatestTag($repo) {
+  try {
+    $url = "https://api.github.com/repos/$repo/releases/latest"
+    $resp = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10
+    $json = $resp.Content | ConvertFrom-Json
+    return $json.tag_name
+  } catch {
+    debug "Failed to fetch latest tag: $_"
+    return ""
+  }
+}
+
+# Strip leading 'v' from version string
+function Strip-V($ver) {
+  if ($ver -and $ver.StartsWith('v')) { return $ver.Substring(1) }
+  return $ver
+}
 
 # ── Platform check ─────────────────────────────────────────────────────────
 if ($env:OS -ne "Windows_NT") {
@@ -80,23 +119,68 @@ if ($env:CRUN_INSTALL_DIR) {
 
 # ── Check existing installation ────────────────────────────────────────────
 [string]$existingVersion = ""
+[string]$existingVerNum = ""
 $isUpgrade = $false
 $cmd = Get-Command crun.exe -ErrorAction SilentlyContinue
 $existingPath = if ($cmd) { $cmd.Source } else { $null }
 if ($existingPath) {
   try {
     $existingVersion = (& $existingPath --version 2>$null) -join ''
-    if ($existingVersion) {
+    if ($existingVersion -match '(\d+\.\d+\.\d+)') {
+      $existingVerNum = $Matches[1]
       $isUpgrade = $true
-      if ($Version -eq "latest") {
-        info "Installed: $existingVersion, checking for updates..."
-      } elseif ($existingVersion -like "*$Version*") {
-        info "Installed: $existingVersion, re-installing..."
-      } else {
-        info "Installed: $existingVersion -> upgrade to $Version..."
-      }
     }
   } catch { }
+}
+
+# Determine target version for comparison
+[string]$targetVerNum = ""
+if ($Version -ne "latest") {
+  $targetVerNum = Strip-V $Version
+} else {
+  info "Checking latest version..."
+  $latestTag = Fetch-LatestTag $Repo
+  if ($latestTag) {
+    $targetVerNum = Strip-V $latestTag
+    debug "latest tag = $latestTag, targetVerNum = $targetVerNum"
+  }
+}
+
+# ── Upgrade prompt ─────────────────────────────────────────────────────────
+if ($isUpgrade) {
+  if ($targetVerNum -and $existingVerNum) {
+    if ($existingVerNum -eq $targetVerNum) {
+      ok "Already up to date (v$existingVerNum)"
+      if (-not $YesMode) {
+        if (-not (Confirm-User "Reinstall anyway?")) {
+          Write-Host ""
+          info "Cancelled, nothing changed."
+          return
+        }
+      }
+      Write-Host ""
+    } else {
+      info "New version available: v$existingVerNum -> v$targetVerNum"
+      if (-not $YesMode) {
+        if (-not (Confirm-User "Upgrade now?")) {
+          Write-Host ""
+          info "Cancelled, current version kept (v$existingVerNum)"
+          return
+        }
+      }
+      Write-Host ""
+    }
+  } else {
+    info "Installed: $($existingVersion -replace '\s+', ' ')"
+    if (-not $YesMode) {
+      if (-not (Confirm-User "Overwrite existing installation?")) {
+        Write-Host ""
+        info "Cancelled, nothing changed."
+        return
+      }
+    }
+    Write-Host ""
+  }
 }
 
 # ── Download ───────────────────────────────────────────────────────────────
@@ -193,12 +277,22 @@ if (-not $installedVersion) {
   err "Install verification failed: binary is not executable"
 }
 
+# Extract new version number
+[string]$newVerNum = ""
+if ($installedVersion -match '(\d+\.\d+\.\d+)') {
+  $newVerNum = $Matches[1]
+}
+
 if ($isUpgrade) {
   Write-Host ""
-  if ($installedVersion -eq $existingVersion) {
-    info "Version unchanged: $installedVersion"
+  if ($newVerNum -and $existingVerNum) {
+    if ($newVerNum -eq $existingVerNum) {
+      ok "Reinstalled: v$newVerNum"
+    } else {
+      ok "Upgrade complete: v$existingVerNum -> v$newVerNum"
+    }
   } else {
-    ok "Upgrade complete: $existingVersion -> $installedVersion"
+    ok "Install complete: $installedVersion"
   }
 } else {
   Write-Host ""
@@ -208,12 +302,17 @@ if ($isUpgrade) {
 # ── Post-install ───────────────────────────────────────────────────────────
 Write-Host ""
 
-# Config preservation notice
+# Config preservation — installer only touches the binary
 $configDir = Join-Path $env:LOCALAPPDATA "crun"
 if ($isUpgrade) {
   if (Test-Path $configDir) {
-    ok "User config preserved: $configDir"
-    Write-Host "  (preferences, history, presets remain unchanged)"
+    ok "User data preserved: $configDir"
+    Write-Host "  (preferences, history, presets, custom flags unchanged)"
+  }
+} else {
+  if (Test-Path $configDir) {
+    info "Existing user config found: $configDir"
+    Write-Host "  Installer will not overwrite any config files."
   }
 }
 
@@ -232,17 +331,6 @@ if ($env:Path -like "*$InstallDir*") {
 }
 
 warn "$InstallDir is not in PATH"
-
-# Interactive confirm (only if tty available)
-function Confirm-User($prompt) {
-  try {
-    $choice = Read-Host "$prompt [Y/n]"
-    return ($choice -ne 'n' -and $choice -ne 'no')
-  } catch {
-    Write-Host "  (non-interactive, skipping)"
-    return $false
-  }
-}
 
 if (Confirm-User "Add $InstallDir to user PATH?") {
   Write-Host ""

@@ -2,6 +2,22 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠ 安装脚本同步规则（最高优先级）
+
+**修改 `scripts/install.sh` 或 `scripts/install.ps1` 任一文件时，必须同步修改另一个。**
+两个脚本在核心功能上要求完全一致，不允许出现不对等问题。
+
+核心功能包括但不限于：
+- 版本号获取与对比逻辑
+- 升级检测与用户确认流程
+- 命令行参数（`-h`/`--help`、`-y`/`--yes`）
+- 环境变量支持（`CRUN_REPO`、`CRUN_VERSION`、`CRUN_INSTALL_DIR`）
+- 下载、校验、原子安装流程
+- 用户数据保护（config 目录不触碰）
+- 错误处理与回退行为
+
+**违反此规则的 PR 或 commit 视为不完整。**
+
 ## 项目概述 / Project Overview
 
 `crun` 是一个 Linux CLI 工具，通过 TUI 交互界面帮助用户选择 Claude Code 的启动参数，然后执行 `claude <flags>`。

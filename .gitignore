@@ -9,3 +9,6 @@ dist/
 crun.spec
 .superpowers/
 docs/officaldocs/
+
+# Claude Image Paste screenshots
+.claude-images/
