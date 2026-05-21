@@ -39,6 +39,7 @@ jobs:
             --name crun \
             --paths src \
             --add-data "data/flags_default.json:data" \
+            --add-data "pyproject.toml:." \
             --copy-metadata crun \
             src/claude_run/__main__.py
 
