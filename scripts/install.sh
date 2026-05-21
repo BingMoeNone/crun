@@ -99,6 +99,19 @@ fetch_latest_tag() {
 # Strip leading 'v' from a version string for comparison.
 strip_v() { echo "${1#v}"; }
 
+# Compare two version strings (semver). Returns 0 if $1 > $2.
+ver_gt() {
+  local a b i av bv
+  IFS=. read -ra a <<< "$1"
+  IFS=. read -ra b <<< "$2"
+  for ((i=0; i<${#a[@]} || i<${#b[@]}; i++)); do
+    av="${a[$i]:-0}"; bv="${b[$i]:-0}"
+    if (( av > bv )); then return 0; fi
+    if (( av < bv )); then return 1; fi
+  done
+  return 1  # equal
+}
+
 echo ""
 printf "  ${BOLD}crun${NC} installer · ${CYAN}%s${NC} · %s\n" "${VERSION}" "${arch}"
 [[ "${DEBUG}" != "0" ]] && warn "DEBUG 模式已开启"
@@ -143,7 +156,6 @@ fi
 
 # ── Upgrade prompt ─────────────────────────────────────────────────────────────
 if ${is_upgrade}; then
-  # Same version detection
   if [[ -n "${target_ver_num}" && -n "${existing_ver_num}" ]]; then
     if [[ "${existing_ver_num}" == "${target_ver_num}" ]]; then
       ok "已是最新版本 (v${existing_ver_num})"
@@ -155,7 +167,7 @@ if ${is_upgrade}; then
         fi
       fi
       echo ""
-    else
+    elif ver_gt "${target_ver_num}" "${existing_ver_num}"; then
       info "发现新版本: v${existing_ver_num} → v${target_ver_num}"
       if ! ${YES}; then
         if ! read_confirm "是否升级？"; then
@@ -165,9 +177,19 @@ if ${is_upgrade}; then
         fi
       fi
       echo ""
+    else
+      warn "已安装版本 (v${existing_ver_num}) 高于最新 Release (v${target_ver_num})"
+      info "你正在使用预发布或本地构建版本"
+      if ! ${YES}; then
+        if ! read_confirm "是否覆盖安装正式版 v${target_ver_num}？"; then
+          echo ""
+          info "已取消，当前版本保持不变 (v${existing_ver_num})"
+          exit 0
+        fi
+      fi
+      echo ""
     fi
   else
-    # Can't determine versions, just confirm
     info "已安装 ${existing_version:-未知版本}"
     if ! ${YES}; then
       if ! read_confirm "是否覆盖安装？"; then

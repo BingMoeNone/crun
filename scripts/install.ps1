@@ -94,6 +94,20 @@ function Strip-V($ver) {
   return $ver
 }
 
+# Compare two version strings (semver). Returns $true if $a > $b.
+function Ver-GT($a, $b) {
+  $ap = [int[]]($a -split '\.')
+  $bp = [int[]]($b -split '\.')
+  $max = [Math]::Max($ap.Length, $bp.Length)
+  for ($i = 0; $i -lt $max; $i++) {
+    $av = if ($i -lt $ap.Length) { $ap[$i] } else { 0 }
+    $bv = if ($i -lt $bp.Length) { $bp[$i] } else { 0 }
+    if ($av -gt $bv) { return $true }
+    if ($av -lt $bv) { return $false }
+  }
+  return $false
+}
+
 # ── Platform check ─────────────────────────────────────────────────────────
 if ($env:OS -ne "Windows_NT") {
   err "crun installer: Windows only"
@@ -159,10 +173,21 @@ if ($isUpgrade) {
         }
       }
       Write-Host ""
-    } else {
+    } elseif (Ver-GT $targetVerNum $existingVerNum) {
       info "New version available: v$existingVerNum -> v$targetVerNum"
       if (-not $YesMode) {
         if (-not (Confirm-User "Upgrade now?")) {
+          Write-Host ""
+          info "Cancelled, current version kept (v$existingVerNum)"
+          return
+        }
+      }
+      Write-Host ""
+    } else {
+      warn "Installed version (v$existingVerNum) is newer than latest release (v$targetVerNum)"
+      info "You are using a pre-release or local build"
+      if (-not $YesMode) {
+        if (-not (Confirm-User "Overwrite with release v$targetVerNum?")) {
           Write-Host ""
           info "Cancelled, current version kept (v$existingVerNum)"
           return
