@@ -1,7 +1,7 @@
 # crun
 
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-blue?style=flat-square&logo=windows&logoColor=white)](https://github.com/BingMoeNone/crun)
 
 `crun` 是一个 Linux CLI 工具，通过 TUI 交互界面选择 Claude Code 的 71 个启动参数（15 个分组），然后执行 `claude <flags>`。支持拼音模糊搜索、搜索字符高亮、参数互斥、9 条命令历史（A/B 自适应方案）、参数预设、参数使用提示和自定义快捷键。
@@ -354,4 +354,4 @@ Output binary: `dist/crun`
 
 ## License
 
-MIT License.
+Apache 2.0 License.

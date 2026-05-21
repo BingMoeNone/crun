@@ -25,4 +25,5 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=6.0.0",
     "pexpect>=4.9",
+    "pillow>=12.2.0",
 ]
