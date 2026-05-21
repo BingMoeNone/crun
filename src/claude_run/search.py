@@ -20,53 +20,74 @@ def _get_pinyin(text: str) -> str:
     return result
 
 
-def fuzzy_match(query: str, target: str) -> int:
+def fuzzy_match(query: str, target: str) -> float:
     """
-    Simple fuzzy matching returning a score > 0 if query matches target.
+    Fuzzy matching returning a score > 0 if query matches target.
     Higher score = better match. 0 = no match.
+
+    Score tiers (each with a tie-breaking fractional part):
+    - 1000-1010: exact match
+    - 900-910: prefix match (target starts with query)
+    - 800-810: substring match (query in target)
+    - 700-720: subsequence match (all query chars in order)
     """
     query = query.lower()
     target = target.lower()
 
     if query == target:
-        return 100
+        # Exact match: shorter target = better
+        return 1000.0 + (1.0 / max(len(target), 1)) * 10
+
     if target.startswith(query):
-        return 80
+        # Prefix: higher match ratio = better
+        return 900.0 + (len(query) / max(len(target), 1)) * 10
+
     if query in target:
-        return 60
+        # Substring: higher density = query is a larger fraction of target
+        density = len(query) / max(len(target), 1)
+        return 800.0 + density * 10
 
     # Subsequence match
     qi = 0
-    score = 0
-    consecutive = 0
-    for ch in target:
+    positions: list[int] = []
+    for i, ch in enumerate(target):
         if qi < len(query) and ch == query[qi]:
+            positions.append(i)
             qi += 1
-            consecutive += 1
-            score += consecutive * 5
-    if qi == len(query):
-        return score + 20
 
-    return 0
+    if qi == len(query):
+        # Density: how much of target is matched chars
+        density = len(query) / max(len(target), 1)
+        # Tightness: how concentrated the matched chars are
+        if len(positions) >= 2:
+            spread = positions[-1] - positions[0] + 1
+            tightness = len(query) / spread
+        else:
+            tightness = 1.0
+        return 700.0 + density * 10 + tightness * 10
+
+    return 0.0
 
 def search_flags(flags: Sequence, query: str, lang: str = "zh") -> list:
     """
     Search flags by flag name, zh/en description, choice labels/values, and pinyin.
     Returns sorted list of flags by match score (highest first).
+
+    Dimension weights ensure the priority: flag name > description > choice > pinyin.
     """
     if not query.strip():
         return list(flags)
 
     alt_lang = "en" if lang == "zh" else "zh"
-    results = []
+    results: list[tuple[float, str, object]] = []
     for flag in flags:
-        # 拼音维度
-        pinyin_score = 0
+        # Pinyin score (lowest priority)
+        pinyin_score = 0.0
         if lang == "zh":
             pinyin_desc = _get_pinyin(flag.label("zh"))
             pinyin_score = fuzzy_match(query.lower(), pinyin_desc)
 
-        choice_score = 0
+        choice_score = 0.0
         if flag.choices:
             for c in flag.choices:
                 choice_score = max(
@@ -75,25 +96,38 @@ def search_flags(flags: Sequence, query: str, lang: str = "zh") -> list:
                     fuzzy_match(query, c.label_str(lang)),
                     fuzzy_match(query, c.label_str(alt_lang)),
                 )
-                # 拼音匹配 choice label
+                # Pinyin match for choice labels
                 if lang == "zh":
                     choice_score = max(
                         choice_score,
                         fuzzy_match(query.lower(), _get_pinyin(c.label_str("zh"))),
                     )
 
-        score = max(
+        flag_name_score = max(
             fuzzy_match(query, flag.flag),
-            fuzzy_match(query, flag.label(lang)),
-            fuzzy_match(query, flag.label(alt_lang)),
-            choice_score,
-            pinyin_score,
+            fuzzy_match(query, flag.flag.lstrip('-')),
         )
-        if score > 0:
-            results.append((score, flag))
+        desc_primary_score = fuzzy_match(query, flag.label(lang))
+        desc_alt_score = fuzzy_match(query, flag.label(alt_lang))
 
-    results.sort(key=lambda x: -x[0])
-    return [f for _, f in results]
+        # Weighted combination: flag name (×100) > description (×10) > choice (×5) > pinyin (×1)
+        # The multiplier gap (~10x per tier) guarantees the dimension priority
+        combined = (
+            flag_name_score * 100.0 +
+            max(desc_primary_score, desc_alt_score) * 10.0 +
+            choice_score * 5.0 +
+            pinyin_score * 1.0
+        )
+        if combined > 0:
+            # Small bonus for shorter flag names (shorter = more focused / core flag)
+            name_len = max(len(flag.flag.lstrip('-')), 1)
+            combined += 20.0 / name_len
+        if combined > 0:
+            # secondary sort key: stable by flag name
+            results.append((combined, flag.flag, flag))
+
+    results.sort(key=lambda x: (-x[0], x[1]))
+    return [f for _, _, f in results]
 
 
 def highlight_line(

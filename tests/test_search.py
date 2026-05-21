@@ -1,89 +1,5 @@
 # tests/test_search.py
-
-# ── 拼音缓存 ────────────────────────────────
-_pinyin_cache: dict[str, str] = {}
-
-
-def _get_pinyin(text: str) -> str:
-    """返回中文文本的拼音串，带缓存。"""
-    if text in _pinyin_cache:
-        return _pinyin_cache[text]
-    try:
-        from pypinyin import lazy_pinyin, Style
-
-        segs = lazy_pinyin(text, style=Style.NORMAL)
-        result = "".join(segs)
-    except Exception:
-        result = text
-    _pinyin_cache[text] = result
-    return result
-
-
-def fuzzy_match(query: str, target: str) -> int:
-    """Returns score > 0 if query matches target. Higher = better. 0 = no match."""
-    query = query.lower()
-    target = target.lower()
-
-    if query == target:
-        return 100
-    if target.startswith(query):
-        return 80
-    if query in target:
-        return 60
-
-    qi = 0
-    score = 0
-    consecutive = 0
-    for ch in target:
-        if qi < len(query) and ch == query[qi]:
-            qi += 1
-            consecutive += 1
-            score += consecutive * 5
-    if qi == len(query):
-        return score + 20
-    return 0
-
-def search_flags(flags, query: str, lang: str = "zh") -> list:
-    """Search flags by flag name, zh/en description, choice labels/values, and pinyin."""
-    if not query.strip():
-        return list(flags)
-
-    alt_lang = "en" if lang == "zh" else "zh"
-    results = []
-    for flag in flags:
-        # 拼音维度
-        pinyin_score = 0
-        if lang == "zh":
-            pinyin_desc = _get_pinyin(flag.label("zh"))
-            pinyin_score = fuzzy_match(query.lower(), pinyin_desc)
-
-        choice_score = 0
-        if flag.choices:
-            for c in flag.choices:
-                choice_score = max(
-                    choice_score,
-                    fuzzy_match(query, c.value),
-                    fuzzy_match(query, c.label_str(lang)),
-                    fuzzy_match(query, c.label_str(alt_lang)),
-                )
-                if lang == "zh":
-                    choice_score = max(
-                        choice_score,
-                        fuzzy_match(query.lower(), _get_pinyin(c.label_str("zh"))),
-                    )
-
-        score = max(
-            fuzzy_match(query, flag.flag),
-            fuzzy_match(query, flag.label(lang)),
-            fuzzy_match(query, flag.label(alt_lang)),
-            choice_score,
-            pinyin_score,
-        )
-        if score > 0:
-            results.append((score, flag))
-
-    results.sort(key=lambda x: -x[0])
-    return [f for _, f in results]
+from claude_run.search import fuzzy_match, search_flags, highlight_line
 
 # Mock flag for testing
 class MockFlag:
@@ -119,7 +35,30 @@ def test_fuzzy_match_no_match():
 def test_search_flags_by_flag_name():
     results = search_flags(FLAGS, "mcp", lang="en")
     assert len(results) > 0
-    assert any(r.flag == "--mcp-config" for r in results)
+    assert results[0].flag == "--mcp-config", \
+        f"flag name match should rank first, got {results[0].flag}"
+
+
+def test_search_flags_ranking_flag_name_over_description():
+    """Flag name match should outrank description-only match."""
+    # A flag with "model" in description but not in flag name
+    flags = [
+        MockFlag("--other", "包含模型关键词", "Contains model keyword"),
+        MockFlag("--model", "当前会话使用的模型", "Model for the current session"),
+    ]
+    results = search_flags(flags, "model", lang="en")
+    assert results[0].flag == "--model", \
+        f"--model should rank first (flag name match), got {results[0].flag}"
+
+
+def test_search_flags_ranking_exact_over_contains():
+    """Exact match should outrank contains match within same dimension."""
+    results = search_flags(FLAGS, "debug", lang="en")
+    # -d has "Enable debug mode", --debug-file has "Write debug logs..."
+    # Both contain "debug" in description, -d's description starts with "Enable"
+    # but --debug-file flag name contains "debug"
+    debug_flags = [r.flag for r in results if "debug" in r.flag.lower()]
+    assert len(debug_flags) > 0, f"Expected debug flags in results: {[r.flag for r in results]}"
 
 def test_search_flags_by_zh_description():
     results = search_flags(FLAGS, "调试", lang="zh")
@@ -160,9 +99,6 @@ def test_search_flags_by_pinyin_partial():
     results = search_flags(FLAGS, "mox", lang="zh")
     assert any(r.flag == "--model" for r in results), \
         "部分拼音 'mox' 应匹配到 --model"
-
-
-from claude_run.search import highlight_line
 
 
 def test_highlight_line_exact_match():
