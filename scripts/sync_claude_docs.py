@@ -19,6 +19,17 @@ CLI_REF_OUT = OUTPUT_DIR / "CLAUDE_CLI_REFERENCE.md"
 DIFF_OUT = OUTPUT_DIR / "FLAGS_DIFF.md"
 
 
+def fetch_md(url: str) -> str:
+    """Fetch a markdown document from url, returning its text content."""
+    req = request.Request(url, headers={"User-Agent": "crun-sync-docs/1.0"})
+    try:
+        with request.urlopen(req, timeout=30) as resp:
+            return resp.read().decode("utf-8")
+    except URLError as e:
+        print(f"ERROR: Failed to fetch {url}: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Sync Claude Code docs and diff flags")
     parser.add_argument("--dry-run", action="store_true",
