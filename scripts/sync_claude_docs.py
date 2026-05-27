@@ -56,6 +56,28 @@ def parse_flags_from_md(text: str) -> list[dict]:
     return flags
 
 
+def diff_flags(
+    official: list[dict],
+    crun: list[dict],
+) -> dict:
+    """Compare official flag set against crun's flags_default.json.
+
+    Returns {"new": [...], "removed": [...], "in_both": [...]}.
+    """
+    official_names = {f["flag"] for f in official}
+    crun_names = {f["flag"] for f in crun}
+
+    new_flags = [f for f in official if f["flag"] not in crun_names]
+    removed = sorted(crun_names - official_names)
+    in_both = sorted(official_names & crun_names)
+
+    return {
+        "new": sorted(new_flags, key=lambda f: f["flag"]),
+        "removed": removed,
+        "in_both": in_both,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Sync Claude Code docs and diff flags")
     parser.add_argument("--dry-run", action="store_true",

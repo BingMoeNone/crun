@@ -8,7 +8,7 @@ from urllib.error import URLError
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from sync_claude_docs import fetch_md, parse_flags_from_md
+from sync_claude_docs import diff_flags, fetch_md, parse_flags_from_md
 
 
 SAMPLE_TABLE = """## CLI flags
@@ -61,3 +61,29 @@ def test_fetch_md_network_error():
             assert False, "Should have raised"
         except SystemExit as e:
             assert e.code == 1
+
+
+def test_diff_flags_new_and_removed():
+    official = [
+        {"flag": "--add-dir", "description": "Add dirs"},
+        {"flag": "--agent", "description": "Specify agent"},
+        {"flag": "--new-flag", "description": "Brand new flag"},
+    ]
+    crun = [
+        {"flag": "--add-dir"},
+        {"flag": "--agent"},
+        {"flag": "--old-flag"},
+    ]
+    result = diff_flags(official, crun)
+    assert result["new"] == [{"flag": "--new-flag", "description": "Brand new flag"}]
+    assert result["removed"] == ["--old-flag"]
+    assert set(result["in_both"]) == {"--add-dir", "--agent"}
+
+
+def test_diff_flags_no_diff():
+    official = [{"flag": "--add-dir", "description": "Add dirs"}]
+    crun = [{"flag": "--add-dir"}]
+    result = diff_flags(official, crun)
+    assert result["new"] == []
+    assert result["removed"] == []
+    assert result["in_both"] == ["--add-dir"]
