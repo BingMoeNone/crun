@@ -30,8 +30,8 @@ def fetch_md(url: str) -> str:
         sys.exit(1)
 
 
-_FLAG_ROW_RE = re.compile(
-    r"\|\s*`--([^`]+)`[^|]*\|\s*(.+?)\s*\|"
+_FLAG_TABLE_RE = re.compile(
+    r"\|\s*(`.+?`(?:,\s*`.+?`)*)\s*\|\s*(.+?)\s*\|"
 )
 
 
@@ -41,18 +41,28 @@ def parse_flags_from_md(text: str) -> list[dict]:
     seen: set[str] = set()
 
     for line in text.split("\n"):
-        m = _FLAG_ROW_RE.match(line)
+        m = _FLAG_TABLE_RE.match(line)
         if not m:
             continue
-        name = "--" + m.group(1)
+        first_col = m.group(1)
         desc = m.group(2).strip()
         # Strip inline HTML like <br /> from description
         desc = re.sub(r"<[^>]+>", " ", desc)
         # Collapse whitespace
         desc = re.sub(r"\s+", " ", desc)
-        if name not in seen:
-            seen.add(name)
-            flags.append({"flag": name, "description": desc})
+
+        # Extract all backtick-quoted flag names (long --flag and short -f aliases)
+        names = re.findall(r"`([^`]+)`", first_col)
+        for raw in names:
+            raw = raw.strip()
+            # Skip CLI commands (e.g. `claude`, `claude update`) — only flags start with -
+            if not raw.startswith("-"):
+                continue
+            # Strip angle-bracket placeholder like --debug-file <path>
+            raw = re.sub(r"\s+<[^>]+>", "", raw)
+            if raw not in seen:
+                seen.add(raw)
+                flags.append({"flag": raw, "description": desc})
     return flags
 
 

@@ -28,8 +28,26 @@ def test_parse_flags_from_md():
     assert "--add-dir" in names
     assert "--agent" in names
     assert "--continue" in names
+    assert "-c" in names
     assert "--no-chrome" in names
-    assert len(flags) == 4
+    assert len(flags) == 5
+
+
+def test_parse_flags_strips_angle_brackets():
+    text = "| `--debug-file <path>` | Write debug logs | `claude --debug-file /tmp/log` |"
+    flags = parse_flags_from_md(text)
+    names = {f["flag"] for f in flags}
+    assert "--debug-file" in names
+    assert "--debug-file <path>" not in names
+
+
+def test_parse_flags_skips_commands():
+    """CLI commands table (e.g. `claude`, `claude update`) should not be parsed as flags."""
+    text = "| `claude` | Start interactive session | `claude` |"
+    flags = parse_flags_from_md(text)
+    names = {f["flag"] for f in flags}
+    assert "claude" not in names
+    assert len(flags) == 0
 
 
 def test_parse_flags_empty():
