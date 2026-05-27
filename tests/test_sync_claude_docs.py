@@ -8,7 +8,39 @@ from urllib.error import URLError
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from sync_claude_docs import fetch_md
+from sync_claude_docs import fetch_md, parse_flags_from_md
+
+
+SAMPLE_TABLE = """## CLI flags
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--add-dir` | Add additional working directories | `claude --add-dir ../apps` |
+| `--agent` | Specify an agent for the current session | `claude --agent my-agent` |
+| `--continue`, `-c` | Load the most recent conversation | `claude --continue` |
+| `--no-chrome` | Disable Chrome integration | `claude --no-chrome` |
+"""
+
+
+def test_parse_flags_from_md():
+    flags = parse_flags_from_md(SAMPLE_TABLE)
+    names = {f["flag"] for f in flags}
+    assert "--add-dir" in names
+    assert "--agent" in names
+    assert "--continue" in names
+    assert "--no-chrome" in names
+    assert len(flags) == 4
+
+
+def test_parse_flags_empty():
+    assert parse_flags_from_md("No table here.") == []
+
+
+def test_parse_flags_includes_descriptions():
+    flags = parse_flags_from_md(SAMPLE_TABLE)
+    flag_map = {f["flag"]: f["description"] for f in flags}
+    assert "Add additional working directories" in flag_map["--add-dir"]
+    assert "Chrome integration" in flag_map["--no-chrome"]
 
 
 def test_fetch_md_success():

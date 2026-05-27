@@ -30,6 +30,32 @@ def fetch_md(url: str) -> str:
         sys.exit(1)
 
 
+_FLAG_ROW_RE = re.compile(
+    r"\|\s*`--([^`]+)`[^|]*\|\s*(.+?)\s*\|"
+)
+
+
+def parse_flags_from_md(text: str) -> list[dict]:
+    """Parse CLI reference markdown table rows, returning list of {flag, description}."""
+    flags: list[dict] = []
+    seen: set[str] = set()
+
+    for line in text.split("\n"):
+        m = _FLAG_ROW_RE.match(line)
+        if not m:
+            continue
+        name = "--" + m.group(1)
+        desc = m.group(2).strip()
+        # Strip inline HTML like <br /> from description
+        desc = re.sub(r"<[^>]+>", " ", desc)
+        # Collapse whitespace
+        desc = re.sub(r"\s+", " ", desc)
+        if name not in seen:
+            seen.add(name)
+            flags.append({"flag": name, "description": desc})
+    return flags
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Sync Claude Code docs and diff flags")
     parser.add_argument("--dry-run", action="store_true",
